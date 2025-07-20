@@ -49,7 +49,7 @@ def analyze_graph(data):
         print(f"{count:5}  {name}")
 
 def main(project_folder):
-    extracted_root = Path(SETTINGS["output_dir"])
+    extracted_root = Path(SETTINGS["paths"]["output_dir"])
     selected = extracted_root / project_folder
     call_graph_path = selected / "call_graph.json"
     if not call_graph_path.exists():

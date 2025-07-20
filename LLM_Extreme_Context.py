@@ -22,8 +22,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # === Configuration ===
-ALLOWED_EXTENSIONS = set(SETTINGS["allowed_extensions"])
-EXCLUDE_DIRS = set(SETTINGS["exclude_dirs"])
+ALLOWED_EXTENSIONS = set(SETTINGS["extraction"]["allowed_extensions"])
+EXCLUDE_DIRS = set(SETTINGS["extraction"]["exclude_dirs"])
+COMMENT_LOOKBACK = SETTINGS["extraction"].get("comment_lookback_lines", 3)
+TOKEN_ESTIMATE_RATIO = SETTINGS["extraction"].get("token_estimate_ratio", 0.75)
+MINIFIED_JS = SETTINGS["extraction"].get("minified_js_detection", {})
+VIS_SETTINGS = SETTINGS.get("visualization", {})
 
 # === Utilities ===
 
@@ -32,13 +36,18 @@ def hash_content(content: str) -> str:
 
 
 def estimate_tokens(content: str) -> int:
-    return int(len(content.split()) * 0.75)
+    return int(len(content.split()) * TOKEN_ESTIMATE_RATIO)
 
 # === Tree-sitter setup ===
 JS_PARSER: Parser = get_parser("javascript")
 
 # === Minified JS detection ===
-def looks_minified_js(filepath: str, max_lines_to_check=50, single_line_threshold=2000, required_long_lines=2) -> bool:
+def looks_minified_js(
+    filepath: str,
+    max_lines_to_check: int = MINIFIED_JS.get("max_lines_to_check", 50),
+    single_line_threshold: int = MINIFIED_JS.get("single_line_threshold", 2000),
+    required_long_lines: int = MINIFIED_JS.get("required_long_lines", 2),
+) -> bool:
     long_lines = 0
     try:
         with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
@@ -71,7 +80,11 @@ def extract_from_python(filepath: str) -> List[Dict]:
             start = node.lineno - 1
             end = node.body[-1].end_lineno if hasattr(node.body[-1], "end_lineno") else node.body[-1].lineno
             code = "".join(lines[start:end])
-            comments = [lines[i].strip() for i in range(max(0, start - 3), start) if lines[i].strip().startswith("#")]
+            comments = [
+                lines[i].strip()
+                for i in range(max(0, start - COMMENT_LOOKBACK), start)
+                if lines[i].strip().startswith("#")
+            ]
             calls = [n.func.id for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
             results.append({
                 "file_path": filepath,
@@ -146,7 +159,11 @@ def extract_from_javascript(filepath: str) -> List[Dict]:
         while end < len(lines) and not pattern.search(lines[end]):
             end += 1
         code = "\n".join(lines[start:end])
-        comments = [lines[j].strip() for j in range(max(0, start - 3), start) if lines[j].strip().startswith("//")]
+        comments = [
+            lines[j].strip()
+            for j in range(max(0, start - COMMENT_LOOKBACK), start)
+            if lines[j].strip().startswith("//")
+        ]
         calls = re.findall(r"\b([A-Za-z_]\w*)\s*\(", code)
         results.append({
             "file_path": filepath,
@@ -351,10 +368,22 @@ def save_graph_json(graph: nx.DiGraph, path: Path):
 
 
 def render_call_graph_image(graph: nx.DiGraph, path: Path):
-    plt.figure(figsize=(12, 10))
-    pos = nx.spring_layout(graph, k=0.5, iterations=20)
-    nx.draw(graph, pos, labels={n: n.split("::")[-1] for n in graph.nodes}, with_labels=True,
-            node_size=1500, node_color="skyblue", font_size=8, arrows=True)
+    plt.figure(figsize=tuple(VIS_SETTINGS.get("figsize", [12, 10])))
+    pos = nx.spring_layout(
+        graph,
+        k=VIS_SETTINGS.get("spring_layout_k", 0.5),
+        iterations=VIS_SETTINGS.get("spring_layout_iterations", 20),
+    )
+    nx.draw(
+        graph,
+        pos,
+        labels={n: n.split("::")[-1] for n in graph.nodes},
+        with_labels=True,
+        node_size=VIS_SETTINGS.get("node_size", 1500),
+        node_color=VIS_SETTINGS.get("node_color", "skyblue"),
+        font_size=VIS_SETTINGS.get("font_size", 8),
+        arrows=True,
+    )
     plt.savefig(str(path), format="PNG", bbox_inches="tight")
     plt.close()
 
@@ -366,7 +395,7 @@ if __name__ == "__main__":
         sys.exit(1)
     root = sys.argv[1]
     project = os.path.basename(os.path.abspath(root))
-    out_dir = Path(SETTINGS["output_dir"]) / project
+    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project
     out_dir.mkdir(parents=True, exist_ok=True)
 
     entries = crawl_directory(root)

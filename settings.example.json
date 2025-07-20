@@ -1,13 +1,65 @@
 {
   "_comment": "Copy this file to settings.json and modify as needed",
-  "llm_model": "BAAI/bge-small-en",
-  "output_dir": "extracted",
-  "local_model_path": "",
-  "embedding_dim": 384,
-  "top_k_results": 20,
-  "chunk_size": 1000,
-  "context_hops": 1,
-  "max_neighbors": 5,
-  "allowed_extensions": [".py", ".js", ".ts", ".json", ".yaml", ".yml", ".md", ".txt", ".html", ".htm"],
-  "exclude_dirs": ["__pycache__", ".git", "node_modules", ".venv", "venv", "dist", "build", ".idea", ".vscode", ".pytest_cache"]
+  "model": {
+    "llm_model": "BAAI/bge-small-en",
+    "local_model_path": ""
+  },
+  "paths": {
+    "output_dir": "extracted"
+  },
+  "embedding": {
+    "embedding_dim": 384
+  },
+  "query": {
+    "top_k_results": 20
+  },
+  "context": {
+    "chunk_size": 1000,
+    "context_hops": 1,
+    "max_neighbors": 5
+  },
+  "extraction": {
+    "allowed_extensions": [
+      ".py",
+      ".js",
+      ".ts",
+      ".json",
+      ".yaml",
+      ".yml",
+      ".md",
+      ".txt",
+      ".html",
+      ".htm"
+    ],
+    "exclude_dirs": [
+      "__pycache__",
+      ".git",
+      "node_modules",
+      ".venv",
+      "venv",
+      "dist",
+      "build",
+      ".idea",
+      ".vscode",
+      ".pytest_cache"
+    ],
+    "comment_lookback_lines": 3,
+    "token_estimate_ratio": 0.75,
+    "minified_js_detection": {
+      "max_lines_to_check": 50,
+      "single_line_threshold": 2000,
+      "required_long_lines": 2
+    }
+  },
+  "visualization": {
+    "figsize": [
+      12,
+      10
+    ],
+    "spring_layout_k": 0.5,
+    "spring_layout_iterations": 20,
+    "node_size": 1500,
+    "font_size": 8,
+    "node_color": "skyblue"
+  }
 }
