@@ -3,6 +3,7 @@ import numpy as np
 import faiss
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 from context_utils import gather_context
 
 from Start import SETTINGS
@@ -31,7 +32,7 @@ def main(project_folder):
     in_w = SETTINGS["context"].get("inbound_weight", 1.0)
 
     print("Encoding function nodes...")
-    for node in nodes:
+    for node in tqdm(nodes, desc="Gathering context", unit="node"):
         name = node.get("name", "")
         context = gather_context(
             graph,

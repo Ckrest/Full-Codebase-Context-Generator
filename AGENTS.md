@@ -36,6 +36,12 @@ those embeddings. The main scripts are located in the repository root.
 
 The `Start.py` module orchestrates these utilities via command line.
 
+### Debugging
+
+Scripts print detailed progress information when run with `PYTHONLOGLEVEL=DEBUG`.
+Extraction and embedding generation also show `tqdm` progress bars for visual
+feedback.
+
 ## Testing
 
 Unit tests live in the `tests/` directory. Run them with:
