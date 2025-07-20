@@ -14,9 +14,16 @@ def sanitize_paths(data: dict) -> None:
         if isinstance(value, dict):
             sanitize_paths(value)
         elif isinstance(value, str) and (
-            "path" in key.lower() or "dir" in key.lower() or key.lower().endswith("_root")
+            "path" in key.lower() 
+            or "dir" in key.lower() 
+            or key.lower().endswith("_root")
+            or "model" in key.lower()
+            or key.lower().startswith("output")
+            or any(keyword in key.lower() for keyword in ["folder", "file", "location", "destination"])
         ):
-            data[key] = value.replace("\\", "/")
+            # Only sanitize if it looks like a file path (contains backslashes or drive letters)
+            if "\\" in value or (len(value) > 1 and value[1] == ":"):
+                data[key] = value.replace("\\", "/")
 
 
 # Default configuration used by all tools
