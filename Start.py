@@ -156,21 +156,11 @@ def run_extract(project_path: Path, project_name: str):
     """Extract functions from the project and build the call graph."""
     from LLM_Extreme_Context import (
         crawl_directory,
-        extract_from_json,
-        extract_from_yaml,
-        extract_from_txt,
         build_call_graph,
         save_graph_json,
     )
 
     entries = crawl_directory(str(project_path), respect_gitignore=True)
-            elif ext == ".json":
-                entries.extend(extract_from_json(str(fpath)))
-            elif ext in {".yaml", ".yml"}:
-                entries.extend(extract_from_yaml(str(fpath)))
-            elif ext == ".txt":
-                entries.extend(extract_from_txt(str(fpath)))
-
     graph = build_call_graph(entries)
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     out_dir.mkdir(parents=True, exist_ok=True)

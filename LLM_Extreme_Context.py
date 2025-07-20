@@ -197,7 +197,7 @@ def extract_from_javascript(filepath: str) -> List[Dict]:
 
         if node.type == "function_declaration":
             name_node = node.child_by_field_name("name")
-            name = name_node.text.decode("utf-8", "ignore") if name_node else "anonymous"
+            name = name_node.text.decode("utf-8", "ignore") if name_node and name_node.text else "anonymous"
             start_line = node.start_point[0]
             code = get_code(node.start_byte, node.end_byte)
             comments = gather_comments(start_line)
@@ -219,7 +219,7 @@ def extract_from_javascript(filepath: str) -> List[Dict]:
             if value and value.type in {"arrow_function", "function_expression"}:
                 name_node = node.child_by_field_name("name")
                 name = (
-                    name_node.text.decode("utf-8", "ignore") if name_node else "anonymous"
+                    name_node.text.decode("utf-8", "ignore") if name_node and name_node.text else "anonymous"
                 )
                 start_line = value.start_point[0]
                 code = get_code(value.start_byte, value.end_byte)
@@ -420,8 +420,8 @@ def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
         imports = entry.get("imports", {})
         callee_counts: Dict[str, int] = {}
         for callee in entry.get("called_functions", []):
-            target_file = entry["file_path"]
-            func_name = callee
+            target_file: str = entry["file_path"]
+            func_name: str = callee
             if "." in callee:
                 base, func_name = callee.split(".", 1)
                 imported = imports.get(base)
@@ -431,7 +431,12 @@ def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
                 else:
                     target_file = module_to_file.get(base, target_file)
 
-            cid = name_to_ids_by_file.get(target_file, {}).get(func_name)
+            # At this point both func_name and target_file are guaranteed to be non-empty strings
+            file_funcs = name_to_ids_by_file.get(target_file)
+            if file_funcs and func_name in file_funcs:
+                cid = file_funcs[func_name]
+            else:
+                cid = None
             if not cid:
                 # fallback to any file containing function name
                 ids = name_to_ids_global.get(func_name, [])
