@@ -31,4 +31,4 @@ You can also copy `settings.example.json` to `settings.json` and modify it as ne
 ## Usage
 
 The `settings.json` file is automatically loaded by all scripts. If the file doesn't exist, it will be generated with defaults the first time you run the tools.
-Run `python Start.py <command>` to execute tools where `<command>` is `generate`, `query`, or `inspect`.
+Run `python Start.py [path]` where `path` is the folder you want to analyse. If the artifacts for that project do not exist they will be created and you will then be dropped into the interactive query interface.
