@@ -33,7 +33,9 @@ pytest -q
 
 - **LLM_model** – `api_key`, `api_type`, `local_path`
 - **api_settings** – `temperature`, `top_p`, `max_output_tokens`
-- **encoder_model_path** – location of the sentence transformer model
+ - **encoder_model_path** – location of the sentence transformer model. If left
+   blank, the small `sentence-transformers/all-MiniLM-L6-v2` model will be
+   downloaded automatically.
 - **paths** – `output_dir`
 - **embedding** – `embedding_dim`
 - **query** – `top_k_results`, `use_spellcheck`, `sub_question_count`
