@@ -33,14 +33,13 @@ pytest -q
 
 - **LLM_model** – `api_key`, `api_type`, `local_path`
 - **api_settings** – `temperature`, `top_p`, `max_output_tokens`
-- **encoder_model_path** – location of the sentence transformer model
 - **paths** – `output_dir`
-- **embedding** – `embedding_dim`
 - **query** – `top_k_results`, `use_spellcheck`, `sub_question_count`
 - **context** – `context_hops`, `max_neighbors`, `bidirectional`
 - **extraction** – `allowed_extensions`, `exclude_dirs`, `comment_lookback_lines`,
   `token_estimate_ratio`, and `minified_js_detection` options
 - **visualization** – parameters controlling call graph rendering
+- **embedding** – `embedding_dim`, `encoder_model_path`
 
 The extraction step relies on `crawl_directory` which automatically skips files
 listed in `.gitignore` and only processes paths with extensions from

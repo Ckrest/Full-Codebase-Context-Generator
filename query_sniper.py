@@ -46,7 +46,7 @@ def average_embeddings(model, texts) -> np.ndarray:
 def main(project_folder):
     """Interactive search of the generated embeddings."""
     # --- Configuration Loading ---
-    model_path = SETTINGS.get("encoder_model_path")
+    model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
     BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
@@ -62,7 +62,7 @@ def main(project_folder):
     # --- Model and Data Loading ---
     print("🚀 Loading models and data...")
     if not model_path:
-        raise ValueError("encoder_model_path is not set in settings.json")
+        raise ValueError("embedding.encoder_model_path is not set in settings.json")
     model = SentenceTransformer(model_path)
     llm_model = get_llm_model()
     index = faiss.read_index(str(INDEX_PATH))
