@@ -6,7 +6,6 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell, Verbosity
-from transformers.pipelines import pipeline
 from llm_utils import get_llm_model, call_llm
 
 from context_utils import expand_graph
@@ -78,17 +77,9 @@ def main(project_folder):
     if SETTINGS["query"].get("use_spellcheck"):
         symspell = build_symspell(metadata)
 
-    paraphraser = None
-    rephrase_count = int(SETTINGS["query"].get("rephrase_count", 1))
-    if rephrase_count > 1:
-        try:
-            model_or_path = (
-                SETTINGS["query"].get("rephrase_model_path") or "Vamsi/T5_Paraphrase_Paws"
-            )
-            paraphraser = pipeline("text2text-generation", model=model_or_path)
-            print("Loaded paraphrasing model for query rephrasing.")
-        except Exception as e:
-            print(f"⚠️ Could not load paraphrasing model: {e}")
+    sub_question_count = int(SETTINGS["query"].get("sub_question_count", 0))
+    use_sub_questions = sub_question_count > 0
+    RESULTS_FILE = BASE_DIR / "results.txt"
 
     # --- Main Interactive Loop ---
     last = None
@@ -127,15 +118,40 @@ def main(project_folder):
             continue
 
         queries = [correct_query(symspell, query)]
-        if paraphraser and rephrase_count > 1:
-            try:
-                print("Rephrasing query...")
-                results = paraphraser(
-                    query, num_return_sequences=rephrase_count - 1, num_beams=max(4, rephrase_count)
-                )
-                queries.extend([r["generated_text"] for r in results])
-            except Exception as e:
-                print(f"Paraphrasing failed: {e}")
+        sub_queries = []
+        if use_sub_questions and llm_model:
+            print("Generating sub-queries...")
+            prompt = (
+                "You are helping search a codebase. Given the following question, "
+                f"break it into {sub_question_count} distinct sub-questions. Each one should represent a different aspect "
+                "of the original question that might be independently searchable. Be concise, specific, "
+                "and prefer technical phrasing.\n\n# Original Question:\n"
+                f"{query}\n\n# Sub-Queries:"
+            )
+            sub_text = call_llm(llm_model, prompt)
+            for line in sub_text.splitlines():
+                t = line.strip()
+                if not t:
+                    continue
+                if t[0].isdigit():
+                    t = t.split(".", 1)[-1].strip()
+                sub_queries.append(t)
+            if sub_queries:
+                sub_queries = sub_queries[:sub_question_count]
+                queries.extend(correct_query(symspell, q) for q in sub_queries)
+        elif use_sub_questions:
+            print("Sub-question generation skipped because no LLM model was available.")
+
+        if sub_queries or use_sub_questions:
+            with open(RESULTS_FILE, "a", encoding="utf-8") as f:
+                f.write(f"Original query: {query}\n")
+                if sub_queries:
+                    f.write("Sub-queries:\n")
+                    for q in sub_queries:
+                        f.write(f"- {q}\n")
+                else:
+                    f.write("Sub-queries: none\n")
+                f.write("\n")
 
         query_vec = average_embeddings(model, queries)
         distances, indices = index.search(np.asarray(query_vec, dtype=np.float32), TOP_K)
@@ -151,6 +167,14 @@ def main(project_folder):
         )
         print(summary)
         print()
+        with open(RESULTS_FILE, "a", encoding="utf-8") as f:
+            f.write("Functions returned:\n")
+            for i in indices[0]:
+                meta = metadata[i]
+                node = node_map.get(meta.get("id"), {})
+                name = node.get("name", meta.get("name"))
+                f.write(f"- {name}\n")
+            f.write("\n")
 
         follow = input("What problem are you trying to solve?\n> ").strip()
         prompt_text = build_prompt(
@@ -169,6 +193,9 @@ def main(project_folder):
             print("⏳ Querying Gemini...")
             FINAL_CONTEXT = call_llm(llm_model, prompt_text)
             print(FINAL_CONTEXT)
+            with open(RESULTS_FILE, "a", encoding="utf-8") as f:
+                f.write("LLM Response:\n")
+                f.write(FINAL_CONTEXT + "\n\n")
         else:
             print("Skipping LLM query as the model is not available.")
 

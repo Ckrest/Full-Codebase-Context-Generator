@@ -17,9 +17,9 @@ Install dependencies with:
 pip install -r requirements.txt
 ```
 
-The first query run will download the T5 paraphrasing model if
-`rephrase_count` is greater than 1. Provide `rephrase_model_path`
-in `settings.json` to use a local checkpoint instead.
+If `sub_question_count` is greater than 0, an LLM call breaks your question into
+that many sub-queries before searching the embeddings. This helps find relevant
+code from multiple angles.
 
 Run the tests with `pytest` to ensure everything works:
 
@@ -36,8 +36,7 @@ pytest -q
 - **encoder_model_path** – location of the sentence transformer model
 - **paths** – `output_dir`
 - **embedding** – `embedding_dim`
-- **query** – `top_k_results`, `use_spellcheck`, `rephrase_count`,
-  `rephrase_model_path`
+- **query** – `top_k_results`, `use_spellcheck`, `sub_question_count`
 - **context** – `context_hops`, `max_neighbors`, `bidirectional`
 - **extraction** – `allowed_extensions`, `exclude_dirs`, `comment_lookback_lines`,
   `token_estimate_ratio`, and `minified_js_detection` options
@@ -66,7 +65,7 @@ The `settings.json` file is automatically loaded by all scripts. If the file doe
 Run `python Start.py [path]` where `path` is the folder you want to analyse. If the artifacts for that project do not exist they will be created and you will then be dropped into the interactive query interface.
 While in the query interface you can type `neighbors <n>` to see the graph neighbors of result `n` from the previous search.
 
-### Spellcheck and Query Rephrasing
+### Spellcheck and Sub-Queries
 
 Two optional features help refine search queries:
 
@@ -74,13 +73,11 @@ Two optional features help refine search queries:
   A small dictionary is built from function names automatically, but you can also
   download a larger frequency dictionary from the SymSpell repository and place it
   in the project root.
-- **rephrase_count** – if greater than 1, a T5 paraphrasing model generates additional
-  variants of the query. All variations are embedded and averaged together before
-  the FAISS search.
-  If you have a local checkpoint, set `rephrase_model_path` to avoid downloading.
+- **sub_question_count** – when greater than 0, your question is first sent to the
+  LLM to produce that many sub-queries. Their embeddings plus the original
+  query are averaged together before searching. The default value is `0` (off).
 
-Enable these options in `settings.json` under the `query` section. The `transformers`
-package will download the paraphrasing model the first time it is used.
+Enable these options in `settings.json` under the `query` section.
 
 ### API Settings
 
