@@ -9,3 +9,5 @@ faiss-cpu
 numpy
 pyyaml
 pathspec
+symspellpy
+transformers
