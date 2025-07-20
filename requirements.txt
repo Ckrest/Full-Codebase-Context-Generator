@@ -1,0 +1,11 @@
+matplotlib
+networkx
+tqdm
+beautifulsoup4
+tree_sitter
+tree_sitter_language_pack
+sentence-transformers
+faiss-cpu
+numpy
+pyyaml
+pathspec
