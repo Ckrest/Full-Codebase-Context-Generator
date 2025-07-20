@@ -25,7 +25,6 @@ DEFAULT_SETTINGS = {
         "rephrase_model_path": "",
     },
     "context": {
-        "chunk_size": 1000,
         "context_hops": 1,
         "max_neighbors": 5,
         "bidirectional": True,
@@ -94,6 +93,7 @@ def ensure_example_settings():
     if current != template:
         with open(example_path, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2, sort_keys=True)
+            f.write("\n")
 
 
 def load_settings():
