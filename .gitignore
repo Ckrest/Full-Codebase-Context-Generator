@@ -1,6 +1,9 @@
 # Ignore everything in the extracted folder
 extracted/
 
+# Ignore everything in the __pycache__ folder
+__pycache__/
+
 # Ignore settings file to prevent tracking local configurations
 # Use settings.example.json as a template to create your settings.json
 settings.json

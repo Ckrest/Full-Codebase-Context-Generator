@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 def load_settings():
     """Load settings from settings.json with fallback defaults."""
     default_settings = {
-        "llm_model": "BAAI/bge-small-en",
+        "llm_model": "BAAI/bge-small-en", # example local model
+        "local_model_path": "",
         "output_dir": "extracted",
         "default_project": "ComfyUI",
         "embedding_dim": 384,
@@ -26,7 +27,6 @@ def load_settings():
             "__pycache__", ".git", "node_modules", ".venv", "venv",
             "dist", "build", ".idea", ".vscode", ".pytest_cache"
         ],
-        "local_model_path": ""
     }
 
     settings_path = "settings.json"
