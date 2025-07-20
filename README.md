@@ -2,10 +2,9 @@
 
 ## Configuration
 
-This project uses a `settings.json` file for configuration. To get started:
-
-1. Copy `settings.example.json` to `settings.json`
-2. Modify the settings as needed for your environment
+This project uses a `settings.json` file for configuration.
+If the file does not exist it will be created automatically with default values.
+You can also copy `settings.example.json` to `settings.json` and modify it as needed.
 
 ### Settings Options
 
@@ -31,5 +30,5 @@ This project uses a `settings.json` file for configuration. To get started:
 
 ## Usage
 
-The `settings.json` file is automatically loaded by all scripts. If the file doesn't exist, default values are used.
+The `settings.json` file is automatically loaded by all scripts. If the file doesn't exist, it will be generated with defaults the first time you run the tools.
 Run `python Start.py <command>` to execute tools where `<command>` is `generate`, `query`, or `inspect`.

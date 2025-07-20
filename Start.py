@@ -8,9 +8,14 @@ logger = logging.getLogger(__name__)
 
 
 def load_settings():
-    """Load settings from settings.json with fallback defaults."""
+    """Load settings from settings.json and ensure all keys are present.
+
+    If the file is missing it will be created with the default values. If it
+    exists but is missing keys, those keys will be added and the file updated.
+    """
+
     default_settings = {
-        "llm_model": "BAAI/bge-small-en", # example local model
+        "llm_model": "BAAI/bge-small-en",  # example local model
         "local_model_path": "",
         "output_dir": "extracted",
         "default_project": "ComfyUI",
@@ -30,17 +35,36 @@ def load_settings():
     }
 
     settings_path = "settings.json"
+    settings = {}
+
     if os.path.exists(settings_path):
         try:
             with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
-                default_settings.update(settings)
         except (json.JSONDecodeError, IOError) as e:
-            logger.warning(f"Could not load settings.json: {e}. Using defaults.")
+            logger.warning(
+                f"Could not load settings.json: {e}. Using defaults and recreating file."
+            )
+            settings = {}
     else:
-        logger.info("settings.json not found. Using default settings.")
+        logger.info("settings.json not found. Creating one with default settings.")
 
-    return default_settings
+    updated = False
+    for key, value in default_settings.items():
+        if key not in settings:
+            settings[key] = value
+            updated = True
+
+    if updated or not os.path.exists(settings_path):
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
+        except IOError as e:
+            logger.warning(f"Failed to write settings.json: {e}")
+
+    merged = default_settings.copy()
+    merged.update(settings)
+    return merged
 
 
 SETTINGS = load_settings()
