@@ -15,6 +15,11 @@ DEFAULT_SETTINGS = {
         "api_type": "gemini",
         "local_path": "",
     },
+    "api_settings": {
+        "temperature": 0.6,
+        "top_p": 1.0,
+        "max_output_tokens": 5000,
+    },
     "paths": {
         "output_dir": "extracted",
     },

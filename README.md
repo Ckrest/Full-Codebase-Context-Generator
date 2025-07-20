@@ -32,6 +32,7 @@ pytest -q
 - Settings are grouped into categories for easier navigation:
 
 - **LLM_model** – `api_key`, `api_type`, `local_path`
+- **api_settings** – `temperature`, `top_p`, `max_output_tokens`
 - **encoder_model_path** – location of the sentence transformer model
 - **paths** – `output_dir`
 - **embedding** – `embedding_dim`
@@ -80,6 +81,12 @@ Two optional features help refine search queries:
 
 Enable these options in `settings.json` under the `query` section. The `transformers`
 package will download the paraphrasing model the first time it is used.
+
+### API Settings
+
+The `api_settings` section controls parameters sent to the LLM API. Adjust
+`temperature`, `top_p`, and `max_output_tokens` to tune response style and length.
+The default `max_output_tokens` is **5000**.
 
 ### Debug Logging
 
