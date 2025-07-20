@@ -2,6 +2,7 @@ import os
 import json
 import argparse
 import logging
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -69,51 +70,88 @@ def load_settings():
 SETTINGS = load_settings()
 
 
-def run_generate_embeddings(project_folder):
+def run_extract(project_path: Path, project_name: str):
+    """Extract functions from the project and build the call graph."""
+    from LLM_Extreme_Context import (
+        extract_from_python,
+        extract_from_html,
+        extract_from_markdown,
+        build_call_graph,
+        save_graph_json,
+    )
+
+    entries = []
+    for root, dirs, files in os.walk(project_path):
+        dirs[:] = [d for d in dirs if d not in SETTINGS["exclude_dirs"]]
+        for fname in files:
+            ext = Path(fname).suffix.lower()
+            if ext not in SETTINGS["allowed_extensions"]:
+                continue
+            fpath = Path(root) / fname
+            if ext == ".py":
+                entries.extend(extract_from_python(str(fpath)))
+            elif ext in {".html", ".htm"}:
+                entries.extend(extract_from_html(str(fpath)))
+            elif ext in {".md", ".markdown"}:
+                entries.extend(extract_from_markdown(str(fpath)))
+
+    graph = build_call_graph(entries)
+    out_dir = Path(SETTINGS["output_dir"]) / project_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+    graph_path = out_dir / "call_graph.json"
+    save_graph_json(graph, graph_path)
+    logger.info("Saved call graph to %s", graph_path)
+
+
+def run_generate_embeddings(project_name):
     from generate_embeddings import main as gen_main
-    gen_main(project_folder)
+    gen_main(project_name)
 
 
-def run_query(project_folder):
+def run_query(project_name):
     from query_sniper import main as query_main
-    query_main(project_folder)
+    query_main(project_name)
 
 
-def run_inspect(project_folder):
+def run_inspect(project_name):
     from inspect_graph import main as inspect_main
-    inspect_main(project_folder)
+    inspect_main(project_name)
 
 
 def main():
     parser = argparse.ArgumentParser(description="LLM Extreme Context")
-    sub = parser.add_subparsers(dest="command")
-
-    generate_parser = sub.add_parser("generate", help="Generate embeddings from call graph")
-    generate_parser.add_argument("--project", type=str, help="Project folder to analyze")
-
-    query_parser = sub.add_parser("query", help="Run interactive query")
-    query_parser.add_argument("--project", type=str, help="Project folder to analyze")
-
-    inspect_parser = sub.add_parser("inspect", help="Inspect call graph")
-    inspect_parser.add_argument("--project", type=str, help="Project folder to analyze")
-
+    parser.add_argument("path", nargs="?", help="Project directory to analyze")
     args = parser.parse_args()
 
-    project_folder = getattr(args, "project", None)
-    if not project_folder:
-        project_folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
-        if not project_folder:
-            print("No project folder provided. Exiting.")
-            return
+    project_path = Path(args.path) if args.path else None
+    if not project_path:
+        user = input("Enter path to project directory: ")
+        project_path = Path(user.strip())
 
-    if args.command == "generate":
-        run_generate_embeddings(project_folder)
-    elif args.command == "query":
-        run_query(project_folder)
-    elif args.command == "inspect":
-        run_inspect(project_folder)
+    if not project_path.exists():
+        parser.error(f"Path '{project_path}' does not exist")
+
+    project_name = project_path.name
+    SETTINGS["default_project"] = project_name
+
+    out_dir = Path(SETTINGS["output_dir"]) / project_name
+    call_graph_path = out_dir / "call_graph.json"
+    embeddings_path = out_dir / "embeddings.npy"
+    index_path = out_dir / "faiss.index"
+
+    if not call_graph_path.exists():
+        logger.info("Extracting project and building call graph...")
+        run_extract(project_path, project_name)
     else:
-        parser.print_help()
+        logger.info("Using existing call graph at %s", call_graph_path)
+
+    if not (embeddings_path.exists() and index_path.exists()):
+        logger.info("Generating embeddings...")
+        run_generate_embeddings(project_name)
+    else:
+        logger.info("Using existing embeddings at %s", embeddings_path)
+
+    run_query(project_name)
 
 
 if __name__ == "__main__":
