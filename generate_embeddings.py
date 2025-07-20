@@ -7,9 +7,9 @@ from sentence_transformers import SentenceTransformer
 from context_utils import gather_context
 
 from Start import SETTINGS
-def main():
-    CALL_GRAPH_PATH = Path(SETTINGS["output_dir"]) / SETTINGS["default_project"] / "call_graph.json"
-    OUTPUT_DIR = Path(SETTINGS["output_dir"]) / SETTINGS["default_project"]
+def main(project_folder):
+    CALL_GRAPH_PATH = Path(SETTINGS["output_dir"]) / project_folder / "call_graph.json"
+    OUTPUT_DIR = Path(SETTINGS["output_dir"]) / project_folder
     EMBEDDING_DIM = SETTINGS["embedding_dim"]
     MODEL_NAME = SETTINGS["llm_model"]
 
@@ -17,7 +17,7 @@ def main():
     model_path = SETTINGS.get("local_model_path") or MODEL_NAME
     model = SentenceTransformer(model_path)
 
-    print("Loading call graph...")
+    print(f"Loading call graph from {CALL_GRAPH_PATH} ...")
     with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:
         graph = json.load(f)
 
@@ -49,11 +49,20 @@ def main():
         json.dump(metadata, f, indent=2)
 
     index = faiss.IndexFlatIP(EMBEDDING_DIM)
-    index.add(embeddings.astype(np.float32))
+    embeddings_np = np.asarray(embeddings, dtype=np.float32)
+    if embeddings_np.ndim == 1:
+        embeddings_np = embeddings_np.reshape(1, -1)
+    index.add(embeddings_np)
     faiss.write_index(index, str(OUTPUT_DIR / "faiss.index"))
 
     print(f"✅ Saved embeddings and index to {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        main(sys.argv[1])
+    else:
+        folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
+        if folder:
+            main(folder)

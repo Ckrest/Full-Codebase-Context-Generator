@@ -9,10 +9,10 @@ from context_utils import expand_neighborhood
 from Start import SETTINGS
 
 
-def main():
+def main(project_folder):
     """Interactive search of the generated embeddings."""
     MODEL_NAME = SETTINGS["llm_model"]
-    BASE_DIR = Path(SETTINGS["output_dir"]) / SETTINGS["default_project"]
+    BASE_DIR = Path(SETTINGS["output_dir"]) / project_folder
     EMBEDDINGS_PATH = BASE_DIR / "embeddings.npy"
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
@@ -80,4 +80,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        main(sys.argv[1])
+    else:
+        folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
+        if folder:
+            main(folder)

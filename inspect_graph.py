@@ -49,28 +49,9 @@ def analyze_graph(data):
     for name, count in name_counter.most_common(10):
         print(f"{count:5}  {name}")
 
-def main():
+def main(project_folder):
     extracted_root = Path(SETTINGS["output_dir"])
-    if not extracted_root.exists():
-        print(f"No '{SETTINGS['output_dir']}/' directory found.")
-        exit(1)
-
-    folders = [f for f in extracted_root.iterdir() if f.is_dir()]
-    if not folders:
-        print("No extracted projects found.")
-        exit(1)
-
-    print("Which project do you want to inspect?\n")
-    for i, folder in enumerate(folders, 1):
-        print(f"{i:2}: {folder.name}")
-
-    try:
-        choice = int(input("\nSelect project number: "))
-        selected = folders[choice - 1]
-    except (ValueError, IndexError):
-        print("Invalid selection.")
-        exit(1)
-
+    selected = extracted_root / project_folder
     call_graph_path = selected / "call_graph.json"
     if not call_graph_path.exists():
         print(f"No call_graph.json found in {selected}.")
@@ -81,4 +62,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        main(sys.argv[1])
+    else:
+        folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
+        if folder:
+            main(folder)

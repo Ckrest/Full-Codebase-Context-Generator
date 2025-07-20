@@ -18,7 +18,6 @@ def load_settings():
         "llm_model": "BAAI/bge-small-en",  # example local model
         "local_model_path": "",
         "output_dir": "extracted",
-        "default_project": "ComfyUI",
         "embedding_dim": 384,
         "top_k_results": 20,
         "chunk_size": 1000,
@@ -70,37 +69,49 @@ def load_settings():
 SETTINGS = load_settings()
 
 
-def run_generate_embeddings():
+def run_generate_embeddings(project_folder):
     from generate_embeddings import main as gen_main
-    gen_main()
+    gen_main(project_folder)
 
 
-def run_query():
+def run_query(project_folder):
     from query_sniper import main as query_main
-    query_main()
+    query_main(project_folder)
 
 
-def run_inspect():
+def run_inspect(project_folder):
     from inspect_graph import main as inspect_main
-    inspect_main()
+    inspect_main(project_folder)
 
 
 def main():
     parser = argparse.ArgumentParser(description="LLM Extreme Context")
     sub = parser.add_subparsers(dest="command")
 
-    sub.add_parser("generate", help="Generate embeddings from call graph")
-    sub.add_parser("query", help="Run interactive query")
-    sub.add_parser("inspect", help="Inspect call graph")
+    generate_parser = sub.add_parser("generate", help="Generate embeddings from call graph")
+    generate_parser.add_argument("--project", type=str, help="Project folder to analyze")
+
+    query_parser = sub.add_parser("query", help="Run interactive query")
+    query_parser.add_argument("--project", type=str, help="Project folder to analyze")
+
+    inspect_parser = sub.add_parser("inspect", help="Inspect call graph")
+    inspect_parser.add_argument("--project", type=str, help="Project folder to analyze")
 
     args = parser.parse_args()
 
+    project_folder = getattr(args, "project", None)
+    if not project_folder:
+        project_folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
+        if not project_folder:
+            print("No project folder provided. Exiting.")
+            return
+
     if args.command == "generate":
-        run_generate_embeddings()
+        run_generate_embeddings(project_folder)
     elif args.command == "query":
-        run_query()
+        run_query(project_folder)
     elif args.command == "inspect":
-        run_inspect()
+        run_inspect(project_folder)
     else:
         parser.print_help()
 
