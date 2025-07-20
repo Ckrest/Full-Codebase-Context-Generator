@@ -164,43 +164,79 @@ def extract_from_html(filepath: str) -> List[Dict]:
 
 
 def extract_from_javascript(filepath: str) -> List[Dict]:
+    """Parse JavaScript/TypeScript files using tree-sitter."""
     results = []
     if "min." in filepath.lower() or looks_minified_js(filepath):
         logger.info(f"Skipping minified JS file: {filepath}")
         return results
+
     try:
-        lines = Path(filepath).read_text(encoding="utf-8", errors="ignore").splitlines()
+        data = Path(filepath).read_bytes()
     except Exception as e:
         logger.warning(f"Failed to read JS {filepath}: {e}")
         return results
-    pattern = re.compile(r"(function\s+([A-Za-z_]\w+)|const\s+([A-Za-z_]\w+)\s*=\s*function|const\s+([A-Za-z_]\w+)\s*=\s*\([^\)]*\)\s*=>)")
-    for i, line in enumerate(lines):
-        m = pattern.search(line)
-        if not m:
-            continue
-        name = m.group(2) or m.group(3) or m.group(4) or "anonymous"
-        start = i
-        end = i + 1
-        while end < len(lines) and not pattern.search(lines[end]):
-            end += 1
-        code = "\n".join(lines[start:end])
-        comments = [
-            lines[j].strip()
-            for j in range(max(0, start - COMMENT_LOOKBACK), start)
-            if lines[j].strip().startswith("//")
+
+    source = data.decode("utf-8", errors="ignore")
+    lines = source.splitlines()
+    tree = JS_PARSER.parse(data)
+
+    def get_code(start_byte: int, end_byte: int) -> str:
+        return data[start_byte:end_byte].decode("utf-8", errors="ignore")
+
+    def gather_comments(start_line: int) -> List[str]:
+        return [
+            lines[i].strip()
+            for i in range(max(0, start_line - COMMENT_LOOKBACK), start_line)
+            if lines[i].strip().startswith("//")
         ]
-        calls = re.findall(r"\b([A-Za-z_]\w*)\s*\(", code)
-        results.append({
-            "file_path": filepath,
-            "language": "javascript",
-            "type": "function",
-            "name": name,
-            "code": code,
-            "comments": comments,
-            "called_functions": calls,
-            "hash": hash_content(code),
-            "estimated_tokens": estimate_tokens(code)
-        })
+
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.children)
+
+        if node.type == "function_declaration":
+            name_node = node.child_by_field_name("name")
+            name = name_node.text.decode("utf-8", "ignore") if name_node else "anonymous"
+            start_line = node.start_point[0]
+            code = get_code(node.start_byte, node.end_byte)
+            comments = gather_comments(start_line)
+            calls = re.findall(r"\b([A-Za-z_]\w*)\s*\(", code)
+            results.append({
+                "file_path": filepath,
+                "language": "javascript",
+                "type": "function",
+                "name": name,
+                "code": code,
+                "comments": comments,
+                "called_functions": calls,
+                "hash": hash_content(code),
+                "estimated_tokens": estimate_tokens(code),
+            })
+
+        elif node.type == "variable_declarator":
+            value = node.child_by_field_name("value")
+            if value and value.type in {"arrow_function", "function_expression"}:
+                name_node = node.child_by_field_name("name")
+                name = (
+                    name_node.text.decode("utf-8", "ignore") if name_node else "anonymous"
+                )
+                start_line = value.start_point[0]
+                code = get_code(value.start_byte, value.end_byte)
+                comments = gather_comments(start_line)
+                calls = re.findall(r"\b([A-Za-z_]\w*)\s*\(", code)
+                results.append({
+                    "file_path": filepath,
+                    "language": "javascript",
+                    "type": "function",
+                    "name": name,
+                    "code": code,
+                    "comments": comments,
+                    "called_functions": calls,
+                    "hash": hash_content(code),
+                    "estimated_tokens": estimate_tokens(code),
+                })
+
     return results
 
 
