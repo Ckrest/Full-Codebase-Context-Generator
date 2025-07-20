@@ -1,5 +1,4 @@
 import json
-import os
 from pathlib import Path
 import faiss
 import numpy as np
@@ -13,7 +12,6 @@ def main(project_folder):
     """Interactive search of the generated embeddings."""
     MODEL_NAME = SETTINGS["llm_model"]
     BASE_DIR = Path(SETTINGS["output_dir"]) / project_folder
-    EMBEDDINGS_PATH = BASE_DIR / "embeddings.npy"
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
     CALL_GRAPH_PATH = BASE_DIR / "call_graph.json"
@@ -68,13 +66,13 @@ def main(project_folder):
             continue
 
         query_vec = model.encode([query], normalize_embeddings=True)
-        D, I = index.search(np.array(query_vec).astype(np.float32), TOP_K)
-        last = I[0]
+        distances, indices = index.search(np.array(query_vec).astype(np.float32), TOP_K)
+        last = indices[0]
 
         print("\n🎯 Top Matches:")
-        for rank, idx in enumerate(I[0]):
+        for rank, idx in enumerate(indices[0]):
             meta = metadata[idx]
-            score = D[0][rank]
+            score = distances[0][rank]
             print(f"{rank+1}. {meta['name']} — {meta['file']} (score: {score:.3f})")
         print()
 

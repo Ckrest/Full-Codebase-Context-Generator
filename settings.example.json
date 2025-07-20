@@ -3,7 +3,6 @@
   "llm_model": "BAAI/bge-small-en",
   "output_dir": "extracted",
   "local_model_path": "",
-  "default_project": "",
   "embedding_dim": 384,
   "top_k_results": 20,
   "chunk_size": 1000,

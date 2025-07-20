@@ -1,21 +1,20 @@
-import os
 import ast
 import json
 import hashlib
 import logging
-import yaml
+from pathlib import Path
+from typing import Dict, List
+
 from bs4 import BeautifulSoup, Comment
-from typing import List, Dict, Optional
 from tree_sitter import Parser
-import pathspec
 from tree_sitter_language_pack import get_parser
-from tqdm import tqdm
+import networkx as nx
 import re
+
+from Start import SETTINGS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-from Start import SETTINGS
 
 # === Files included and excluded in search ===
 ALLOWED_EXTENSIONS = set(SETTINGS["allowed_extensions"])
@@ -29,7 +28,7 @@ def estimate_tokens(content: str) -> int:
     return int(len(content.split()) * 0.75)
 
 # === Tree-sitter setup ===
-#JS_PARSER = get_parser("javascript")
+JS_PARSER: Parser = get_parser("javascript")
 
 # === Extractors ===
 def extract_from_python(filepath: str) -> List[Dict]:
@@ -63,13 +62,12 @@ def extract_from_python(filepath: str) -> List[Dict]:
     return results
 
 def extract_from_html(filepath: str) -> List[Dict]:
-    results = []
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             content = f.read()
     except Exception:
         logger.warning(f"Failed to read HTML: {filepath}")
-        return results
+        return []
     soup = BeautifulSoup(content, "html.parser")
     sections = []
     for tag in soup.find_all(['head', 'body', 'script', 'style']):
@@ -101,6 +99,41 @@ def extract_from_html(filepath: str) -> List[Dict]:
                 "estimated_tokens": estimate_tokens(c_str)
             })
     return sections
+
+def extract_from_javascript(filepath: str) -> List[Dict]:
+    results = []
+    with open(filepath, "r", encoding="utf-8") as f:
+        source = f.read()
+    tree = JS_PARSER.parse(bytes(source, "utf-8"))
+    lines = source.splitlines()
+    for node in tree.root_node.children:
+        if node.type != "function_declaration":
+            continue
+        start = node.start_point[0]
+        end = node.end_point[0]
+        code = "\n".join(lines[start : end + 1])
+        name_node = node.child_by_field_name("name")
+        name = source[name_node.start_byte : name_node.end_byte] if name_node else "anonymous"
+        comments = [
+            lines[i].strip()
+            for i in range(max(0, start - 3), start)
+            if lines[i].strip().startswith("//")
+        ]
+        calls = re.findall(r"([A-Za-z_][A-Za-z0-9_]*)\(", code)
+        results.append(
+            {
+                "file_path": filepath,
+                "language": "javascript",
+                "type": "function",
+                "name": name,
+                "code": code,
+                "comments": comments,
+                "called_functions": calls,
+                "hash": hash_content(code),
+                "estimated_tokens": estimate_tokens(code),
+            }
+        )
+    return results
 
 def extract_from_markdown(filepath: str) -> List[Dict]:
     results = []
@@ -143,8 +176,6 @@ def extract_from_markdown(filepath: str) -> List[Dict]:
     return results
 
 # === Call graph utilities ===
-import networkx as nx
-from pathlib import Path
 
 
 def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
