@@ -5,7 +5,7 @@ import sys
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from symspellpy import SymSpell, Verbosity
+from symspellpy import SymSpell
 from llm_utils import get_llm_model, call_llm
 
 from context_utils import expand_graph
