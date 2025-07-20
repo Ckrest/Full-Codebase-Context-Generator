@@ -132,8 +132,38 @@ def extract_from_markdown(filepath: str) -> List[Dict]:
     results = []
     with open(filepath, "r", encoding="utf-8") as f:
         lines = f.readlines()
+
     current = []
     title = "untitled"
     for line in lines:
-        pass  # ...existing code...
+        if line.strip().startswith("#"):
+            if current:
+                content = ''.join(current)
+                results.append({
+                    "file_path": filepath,
+                    "language": "markdown",
+                    "type": "section",
+                    "name": title,
+                    "code": content,
+                    "comments": [],
+                    "called_functions": [],
+                    "hash": hash_content(content),
+                    "estimated_tokens": estimate_tokens(content)
+                })
+                current = []
+            title = line.strip().lstrip("#").strip()
+        current.append(line)
+    if current:
+        content = ''.join(current)
+        results.append({
+            "file_path": filepath,
+            "language": "markdown",
+            "type": "section",
+            "name": title,
+            "code": content,
+            "comments": [],
+            "called_functions": [],
+            "hash": hash_content(content),
+            "estimated_tokens": estimate_tokens(content)
+        })
     return results
