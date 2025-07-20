@@ -8,6 +8,42 @@ from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell
 from llm_utils import get_llm_model, call_llm
 
+PROMPT_GEN_TEMPLATE = """You are an expert in semantic code search.
+
+Given the user\u2019s problem statement below, generate {n} recommended queries that are each:
+- Short (5\u201312 words)
+- Technically focused
+- Different in angle or phrasing
+- Useful for embedding-based code search
+
+Respond only with a JSON list of strings \u2014 no commentary, no markdown.
+
+# Problem Statement
+{problem}
+
+# Output Format
+[
+  "query suggestion 1",
+  "query suggestion 2"
+]
+"""
+
+PROMPT_NEW_QUERY = """You previously generated the following recommended queries for a problem. Now generate a single, new query that:
+- Is different in phrasing or focus
+- Still relevant to the original problem
+- Is useful for code search
+- Is short and specific
+
+Respond only with the query string.
+
+# Problem Statement
+{problem}
+
+# Existing Queries
+{existing}
+
+# New Query"""
+
 from context_utils import expand_graph
 from summary_formatter import format_summary
 from prompt_builder import build_prompt
@@ -43,7 +79,32 @@ def average_embeddings(model, texts) -> np.ndarray:
     return np.mean(vecs, axis=0, keepdims=True)
 
 
-def main(project_folder):
+def parse_json_list(text):
+    """Extract and parse a JSON list from ``text``."""
+    try:
+        start = text.index("[")
+        end = text.rindex("]") + 1
+        return json.loads(text[start:end])
+    except Exception:
+        return []
+
+
+def generate_prompt_suggestions(problem, count, llm_model):
+    if not llm_model or count <= 0:
+        return []
+    prompt = PROMPT_GEN_TEMPLATE.format(problem=problem, n=count)
+    text = call_llm(llm_model, prompt)
+    return parse_json_list(text)
+
+
+def generate_new_prompt(problem, existing, llm_model):
+    if not llm_model:
+        return ""
+    prompt = PROMPT_NEW_QUERY.format(problem=problem, existing=json.dumps(existing))
+    return call_llm(llm_model, prompt).strip()
+
+
+def main(project_folder, problem=None):
     """Interactive search of the generated embeddings."""
     # --- Configuration Loading ---
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
@@ -85,10 +146,73 @@ def main(project_folder):
     use_sub_questions = sub_question_count > 0
     RESULTS_FILE = BASE_DIR / "results.txt"
 
+    if problem is None:
+        problem = input("\ud83c\udfaf What problem are you trying to solve?\n> ").strip()
+
+    suggestion_count = int(SETTINGS["query"].get("prompt_suggestion_count", 0))
+    suggestions = generate_prompt_suggestions(problem, suggestion_count, llm_model)
+
     # --- Main Interactive Loop ---
     last = None
     while True:
-        query = input("🧠 What is the query? (type 'exit' or 'neighbors <n>')\n> ")
+        print("\nAvailable query prompts:")
+        print("1) Generate a new prompt suggestion")
+        print("2) Use problem statement")
+        for i, q in enumerate(suggestions, start=3):
+            print(f"{i}) {q}")
+
+        user_in = input("\ud83d\udd0d What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ")
+        if user_in.strip().lower() in {"exit", "quit"}:
+            print("👋 Exiting.")
+            break
+
+        if user_in.startswith("neighbors"):
+            if not last:
+                print("No previous search results.")
+                continue
+            try:
+                num = int(user_in.split()[1]) - 1
+                idx = last[num]
+            except (ValueError, IndexError):
+                print("Usage: neighbors <result_number>")
+                continue
+
+            meta = metadata[idx]
+            nb_ids = expand_graph(
+                graph,
+                meta["id"],
+                depth=SETTINGS["context"].get("context_hops", 1),
+                limit=SETTINGS["context"].get("max_neighbors", 5),
+                bidirectional=SETTINGS["context"].get("bidirectional", True),
+                outbound_weight=SETTINGS["context"].get("outbound_weight", 1.0),
+                inbound_weight=SETTINGS["context"].get("inbound_weight", 1.0),
+            )
+            print("Neighbors:")
+            for nid in nb_ids:
+                node = node_map.get(nid, {})
+                print(f"- {node.get('name')} — {node.get('file_path')}")
+            print()
+            continue
+
+        if user_in.isdigit():
+            choice = int(user_in)
+            if choice == 1:
+                new_q = generate_new_prompt(problem, suggestions, llm_model)
+                if not new_q:
+                    print("LLM not available to generate a query.")
+                    continue
+                print(f"Generated prompt: {new_q}")
+                suggestions.append(new_q)
+                query = new_q
+            elif choice == 2:
+                query = problem
+            elif 3 <= choice < 3 + len(suggestions):
+                query = suggestions[choice - 3]
+            else:
+                print("Invalid selection.")
+                continue
+        else:
+            query = user_in
         if query.strip().lower() in {"exit", "quit"}:
             print("👋 Exiting.")
             break
@@ -180,12 +304,11 @@ def main(project_folder):
                 f.write(f"- {name}\n")
             f.write("\n")
 
-        follow = input("What problem are you trying to solve?\n> ").strip()
         prompt_text = build_prompt(
             METADATA_PATH,
             CALL_GRAPH_PATH,
             [int(i) for i in indices[0]],
-            follow,
+            problem,
             base_dir=SETTINGS.get("project_root"),
             save_path=str(BASE_DIR / "initial_prompt.txt"),
         )
