@@ -1,15 +1,28 @@
 {
   "_comment": "Copy this file to settings.json and modify as needed",
-  "api_key": "",
-  "context": {
-    "bidirectional": true,
-    "context_hops": 1,
-    "inbound_weight": 1.0,
-    "max_neighbors": 5,
-    "outbound_weight": 1.0
+  "LLM_model": {
+    "api_key": "",
+    "api_type": "gemini",
+    "local_path": ""
+  },
+  "paths": {
+    "output_dir": "extracted"
   },
   "embedding": {
     "embedding_dim": 384
+  },
+  "query": {
+    "top_k_results": 20,
+    "use_spellcheck": false,
+    "rephrase_count": 1,
+    "rephrase_model_path": ""
+  },
+  "context": {
+    "context_hops": 1,
+    "max_neighbors": 5,
+    "bidirectional": true,
+    "outbound_weight": 1.0,
+    "inbound_weight": 1.0
   },
   "extraction": {
     "allowed_extensions": [
@@ -24,7 +37,6 @@
       ".html",
       ".htm"
     ],
-    "comment_lookback_lines": 3,
     "exclude_dirs": [
       "__pycache__",
       ".git",
@@ -37,35 +49,24 @@
       ".vscode",
       ".pytest_cache"
     ],
+    "comment_lookback_lines": 3,
+    "token_estimate_ratio": 0.75,
     "minified_js_detection": {
       "max_lines_to_check": 50,
-      "required_long_lines": 2,
-      "single_line_threshold": 2000
-    },
-    "token_estimate_ratio": 0.75
-  },
-  "model": {
-    "llm_model": "BAAI/bge-small-en",
-    "local_model_path": ""
-  },
-  "paths": {
-    "output_dir": "extracted"
-  },
-  "query": {
-    "rephrase_count": 1,
-    "rephrase_model_path": "",
-    "top_k_results": 20,
-    "use_spellcheck": false
+      "single_line_threshold": 2000,
+      "required_long_lines": 2
+    }
   },
   "visualization": {
     "figsize": [
       12,
       10
     ],
-    "font_size": 8,
-    "node_color": "skyblue",
-    "node_size": 1500,
+    "spring_layout_k": 0.5,
     "spring_layout_iterations": 20,
-    "spring_layout_k": 0.5
-  }
+    "node_size": 1500,
+    "font_size": 8,
+    "node_color": "skyblue"
+  },
+  "encoder_model_path": ""
 }

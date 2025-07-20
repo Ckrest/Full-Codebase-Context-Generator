@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 # Default configuration used by all tools
 DEFAULT_SETTINGS = {
-    "model": {
-        "llm_model": "BAAI/bge-small-en",  # example local model
-        "local_model_path": "",
+    "LLM_model": {
+        "api_key": "",
+        "api_type": "gemini",
+        "local_path": "",
     },
     "paths": {
         "output_dir": "extracted",
     },
-    "api_key": "",
     "embedding": {"embedding_dim": 384},
     "query": {
         "top_k_results": 20,
@@ -73,6 +73,7 @@ DEFAULT_SETTINGS = {
         "font_size": 8,
         "node_color": "skyblue",
     },
+    "encoder_model_path": "",
 }
 
 
@@ -93,7 +94,7 @@ def ensure_example_settings():
 
     if current != template:
         with open(example_path, "w", encoding="utf-8") as f:
-            json.dump(template, f, indent=2, sort_keys=True)
+            json.dump(template, f, indent=2)
             f.write("\n")
         logger.info("Updated %s with default settings", example_path)
 
