@@ -6,6 +6,7 @@ from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell, Verbosity
 from transformers import pipeline
 from context_utils import expand_graph
+from summary_formatter import format_summary
 
 from Start import SETTINGS
 
@@ -120,10 +121,8 @@ def main(project_folder):
         last = indices[0]
 
         print("\n🎯 Top Matches:")
-        for rank, idx in enumerate(indices[0]):
-            meta = metadata[idx]
-            score = distances[0][rank]
-            print(f"{rank+1}. {meta['name']} — {meta['file']} (score: {score:.3f})")
+        summary = format_summary(indices[0], metadata, node_map)
+        print(summary)
         print()
 
 
