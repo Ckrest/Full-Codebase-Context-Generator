@@ -22,17 +22,25 @@ def get_llm_model():
     return None
 
 
-def call_llm(model, prompt_text, temperature=0.6):
+def call_llm(model, prompt_text, temperature=None, max_tokens=None):
     """Send ``prompt_text`` to the provided LLM model."""
     if not model:
         return "❌ Generative model not initialized."
+
+    api_cfg = SETTINGS.get("api_settings", {})
+    if temperature is None:
+        temperature = api_cfg.get("temperature", 0.6)
+    if max_tokens is None:
+        max_tokens = api_cfg.get("max_output_tokens", 5000)
+    top_p = api_cfg.get("top_p", 1.0)
+
     try:
         response = model.generate_content(
             prompt_text,
             generation_config={
                 "temperature": temperature,
-                "top_p": 1.0,
-                "max_output_tokens": 1000,
+                "top_p": top_p,
+                "max_output_tokens": max_tokens,
             },
         )
         return response.text.strip()

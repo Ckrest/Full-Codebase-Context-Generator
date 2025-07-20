@@ -14,3 +14,9 @@ def test_settings_example_matches_defaults(tmp_path, monkeypatch):
     data = json.loads(example.read_text())
     assert data == {"_comment": "Copy this file to settings.json and modify as needed", **DEFAULT_SETTINGS}
 
+
+def test_api_settings_defaults():
+    api = DEFAULT_SETTINGS["api_settings"]
+    assert api["max_output_tokens"] == 5000
+    assert api["temperature"] == 0.6
+
