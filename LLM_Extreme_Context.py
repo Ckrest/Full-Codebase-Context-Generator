@@ -449,7 +449,7 @@ def render_call_graph_image(graph: nx.DiGraph, path: Path):
 if __name__ == "__main__":
     import sys
     if len(sys.argv) < 2:
-        print("Usage: python LLM_Extream_Compatible.py /path/to/codebase")
+        print("Usage: python LLM_Extreme_Context.py /path/to/codebase")
         sys.exit(1)
     root = sys.argv[1]
     project = os.path.basename(os.path.abspath(root))
