@@ -1,5 +1,6 @@
 {
   "_comment": "Copy this file to settings.json and modify as needed",
+  "api_key": "",
   "context": {
     "bidirectional": true,
     "context_hops": 1,
