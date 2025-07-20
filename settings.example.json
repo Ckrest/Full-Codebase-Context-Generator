@@ -1,0 +1,11 @@
+{
+  "_comment": "Copy this file to settings.json and modify as needed",
+  "llm_model": "BAAI/bge-small-en",
+  "output_dir": "extracted",
+  "default_project": "",
+  "embedding_dim": 384,
+  "top_k_results": 20,
+  "chunk_size": 1000,
+  "allowed_extensions": [".py", ".js", ".ts", ".json", ".yaml", ".yml", ".md", ".txt", ".html", ".htm"],
+  "exclude_dirs": ["__pycache__", ".git", "node_modules", ".venv", "venv", "dist", "build", ".idea", ".vscode", ".pytest_cache"]
+}
