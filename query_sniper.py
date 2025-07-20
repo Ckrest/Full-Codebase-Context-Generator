@@ -1,18 +1,25 @@
 import json
 from pathlib import Path
+import sys
+
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell, Verbosity
 from transformers.pipelines import pipeline
+from google import genai
+
 from context_utils import expand_graph
 from summary_formatter import format_summary
 from prompt_builder import build_prompt
-
 from Start import SETTINGS
+
+# Only run this block for Gemini Developer API
+client = genai.Client(api_key='GEMINI_API_KEY')
 
 
 def build_symspell(metadata):
+    """Builds a SymSpell dictionary for spell correction."""
     sym = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
     print("Building spellcheck dictionary...")
     for item in metadata:
@@ -23,6 +30,7 @@ def build_symspell(metadata):
 
 
 def correct_query(symspell, query: str) -> str:
+    """Corrects the query using the SymSpell dictionary."""
     if not symspell:
         return query
     suggestions = symspell.lookup_compound(query, max_edit_distance=2)
@@ -32,6 +40,7 @@ def correct_query(symspell, query: str) -> str:
 
 
 def average_embeddings(model, texts) -> np.ndarray:
+    """Encodes texts and returns the average of their embeddings."""
     vecs = model.encode(list(texts), normalize_embeddings=True)
     vecs = np.asarray(vecs, dtype=float)
     if vecs.ndim == 1:
@@ -39,14 +48,36 @@ def average_embeddings(model, texts) -> np.ndarray:
     return np.mean(vecs, axis=0, keepdims=True)
 
 
+# REFACTORED FUNCTION
+def call_llm(model_obj, prompt_text, temperature=0.6):
+    """
+    Calls the generative model with the provided prompt using a pre-initialized model object.
+    """
+    # The model object is now passed in, not created here.
+    if not model_obj:
+        return "❌ Generative model not initialized. Check API key in settings."
+    try:
+        response = model_obj.generate_content(
+            prompt_text,
+            generation_config={
+                "temperature": temperature,
+                "top_p": 1.0,
+                "max_output_tokens": 1000,
+            },
+        )
+        return response.text.strip()
+    except Exception as e:
+        return f"💥 Gemini query failed: {e}"
+
+
 def main(project_folder):
     """Interactive search of the generated embeddings."""
+    # --- Configuration Loading ---
     MODEL_NAME = SETTINGS["model"]["llm_model"]
     BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
     CALL_GRAPH_PATH = BASE_DIR / "call_graph.json"
-
     TOP_K = SETTINGS["query"]["top_k_results"]
 
     print("🔧 Running... Model, context, and settings info:")
@@ -55,7 +86,8 @@ def main(project_folder):
     print(f"Index file: {INDEX_PATH}")
     print(f"Top-K results: {TOP_K}\n")
 
-    print("🔄 Loading model and index...")
+    # --- Model and Data Loading ---
+    print("🚀 Loading models and data...")
     model_path = SETTINGS.get("model", {}).get("local_model_path") or MODEL_NAME
     model = SentenceTransformer(model_path)
     index = faiss.read_index(str(INDEX_PATH))
@@ -65,18 +97,24 @@ def main(project_folder):
         graph = json.load(f)
     node_map = {n["id"]: n for n in graph.get("nodes", [])}
 
+    # --- Optional Tools Initialization ---
     symspell = None
-    paraphraser = None
     if SETTINGS["query"].get("use_spellcheck"):
         symspell = build_symspell(metadata)
+
+    paraphraser = None
     rephrase_count = int(SETTINGS["query"].get("rephrase_count", 1))
     if rephrase_count > 1:
-        model_or_path = (
-            SETTINGS["query"].get("rephrase_model_path") or "Vamsi/T5_Paraphrase_Paws"
-        )
-        paraphraser = pipeline("text2text-generation", model=model_or_path)
-        print("Loaded paraphrasing model for query rephrasing")
+        try:
+            model_or_path = (
+                SETTINGS["query"].get("rephrase_model_path") or "Vamsi/T5_Paraphrase_Paws"
+            )
+            paraphraser = pipeline("text2text-generation", model=model_or_path)
+            print("Loaded paraphrasing model for query rephrasing.")
+        except Exception as e:
+            print(f"⚠️ Could not load paraphrasing model: {e}")
 
+    # --- Main Interactive Loop ---
     last = None
     while True:
         query = input("🧠 What is the query? (type 'exit' or 'neighbors <n>')\n> ")
@@ -91,9 +129,10 @@ def main(project_folder):
             try:
                 num = int(query.split()[1]) - 1
                 idx = last[num]
-            except Exception:
+            except (ValueError, IndexError):
                 print("Usage: neighbors <result_number>")
                 continue
+            
             meta = metadata[idx]
             nb_ids = expand_graph(
                 graph,
@@ -112,10 +151,12 @@ def main(project_folder):
             continue
 
         queries = [correct_query(symspell, query)]
-        if paraphraser:
+        if paraphraser and rephrase_count > 1:
             try:
                 print("Rephrasing query...")
-                results = paraphraser(query, num_return_sequences=rephrase_count-1, num_beams=max(4, rephrase_count))
+                results = paraphraser(
+                    query, num_return_sequences=rephrase_count - 1, num_beams=max(4, rephrase_count)
+                )
                 queries.extend([r["generated_text"] for r in results])
             except Exception as e:
                 print(f"Paraphrasing failed: {e}")
@@ -147,14 +188,21 @@ def main(project_folder):
         print("\nGenerated initial prompt:\n")
         print(prompt_text)
         print()
-        if not SETTINGS.get("api_key"):
-            print("No API key found in settings.json under 'api_key'. Provide one to automatically query an LLM.")
+        
+        # FIXED: Call the LLM using the pre-initialized model object.
+        if ("insert is gemini api key here"):
+            print("⏳ Querying Gemini...")
+            response = client.models.generate_content(
+                model="gemini-2.5-pro",
+                contents=prompt_text,
+            )
+            FINAL_CONTEXT = response.text
+            print(FINAL_CONTEXT)
         else:
-            print("Use the above prompt with your configured API key.")
+            print("Skipping LLM query as the model is not available.")
 
 
 if __name__ == "__main__":
-    import sys
     if len(sys.argv) > 1:
         main(sys.argv[1])
     else:
