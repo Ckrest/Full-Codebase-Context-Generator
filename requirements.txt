@@ -11,4 +11,4 @@ pyyaml
 pathspec
 symspellpy
 transformers
-google-genai #if using a gemini API key (free API accses as of 7/20/2025)
+google-genai
