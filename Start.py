@@ -97,30 +97,34 @@ def ensure_example_settings():
 
 
 def load_settings():
-    """Load settings from settings.json and ensure all keys are present.
+    """Load settings from ``settings.json`` and ensure all keys are present.
 
-    If the file is missing it will be created with the default values. If it
-    exists but is missing keys, those keys will be added and the file updated.
-    The ``settings.example.json`` file is also kept in sync with
-    ``DEFAULT_SETTINGS``.
+    If the file is missing it will be created using ``DEFAULT_SETTINGS``. When
+    an existing file is missing keys, those defaults are added only in memory –
+    the file on disk is left untouched. The ``settings.example.json`` file is
+    always kept in sync with ``DEFAULT_SETTINGS``.
     """
 
     ensure_example_settings()
 
     settings_path = "settings.json"
-    settings = {}
-
     if os.path.exists(settings_path):
         try:
             with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
         except (json.JSONDecodeError, IOError) as e:
             logger.warning(
-                f"Could not load settings.json: {e}. Using defaults and recreating file."
+                f"Could not load settings.json: {e}. Using defaults."
             )
             settings = {}
     else:
         logger.info("settings.json not found. Creating one with default settings.")
+        settings = json.loads(json.dumps(DEFAULT_SETTINGS))
+        try:
+            with open(settings_path, "w", encoding="utf-8") as f:
+                json.dump(settings, f, indent=2)
+        except IOError as e:
+            logger.warning(f"Failed to write settings.json: {e}")
 
     def ensure_keys(defaults, target):
         changed = False
@@ -133,14 +137,7 @@ def load_settings():
                     changed = True
         return changed
 
-    updated = ensure_keys(DEFAULT_SETTINGS, settings)
-
-    if updated or not os.path.exists(settings_path):
-        try:
-            with open(settings_path, "w", encoding="utf-8") as f:
-                json.dump(settings, f, indent=2)
-        except IOError as e:
-            logger.warning(f"Failed to write settings.json: {e}")
+    ensure_keys(DEFAULT_SETTINGS, settings)
 
     def deep_merge(defaults, overrides):
         result = defaults.copy()
