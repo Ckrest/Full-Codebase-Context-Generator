@@ -127,3 +127,28 @@ def bar():
     bar_id = f"{f}::bar"
     foo_id = f"{f}::foo"
     assert graph[bar_id][foo_id]["weight"] == 2
+
+
+def test_extract_from_javascript(tmp_path):
+    code = """
+function foo(a) {
+    return a + 1;
+}
+
+const bar = x => x * 2;
+
+async function baz(y) {
+    await foo(y);
+}
+
+const qux = async (z) => {
+    return await foo(z);
+};
+"""
+    f = tmp_path / "sample.js"
+    f.write_text(code)
+    results = lec.extract_from_javascript(str(f))
+    names = {r["name"] for r in results}
+    assert names == {"foo", "bar", "baz", "qux"}
+    baz_entry = next(r for r in results if r["name"] == "baz")
+    assert "foo" in baz_entry["called_functions"]
