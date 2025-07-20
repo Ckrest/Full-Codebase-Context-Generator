@@ -23,9 +23,8 @@ DEFAULT_SETTINGS = {
     "paths": {
         "output_dir": "extracted",
     },
-    "embedding": {"embedding_dim": 384},
     "query": {
-        "top_k_results": 20,
+        "top_k_results": 5,
         "use_spellcheck": False,
         "sub_question_count": 0,
     },
@@ -77,7 +76,10 @@ DEFAULT_SETTINGS = {
         "font_size": 8,
         "node_color": "skyblue",
     },
-    "encoder_model_path": "",
+    "embedding": {
+        "embedding_dim": 384,
+        "encoder_model_path": "",
+    },
 }
 
 

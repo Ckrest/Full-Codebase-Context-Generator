@@ -11,7 +11,7 @@ def main(project_folder):
     CALL_GRAPH_PATH = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
     OUTPUT_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     EMBEDDING_DIM = SETTINGS["embedding"]["embedding_dim"]
-    model_path = SETTINGS.get("encoder_model_path")
+    model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
 
     print("Loading embedding model...")
     if not model_path:

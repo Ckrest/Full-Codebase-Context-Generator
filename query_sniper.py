@@ -46,7 +46,7 @@ def average_embeddings(model, texts) -> np.ndarray:
 def main(project_folder):
     """Interactive search of the generated embeddings."""
     # --- Configuration Loading ---
-    model_path = SETTINGS.get("encoder_model_path")
+    model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
     BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
