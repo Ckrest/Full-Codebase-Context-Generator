@@ -1,15 +1,8 @@
 import json
 import os
-import numpy as np
-import faiss
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
-
-import json
-import os
-import numpy as np
 import faiss
-from pathlib import Path
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 # === Settings loader ===
@@ -60,7 +53,6 @@ print(f"Top-K results: {TOP_K}\n")
 print("🔄 Loading model and index...")
 model = SentenceTransformer(MODEL_NAME)
 index = faiss.read_index(str(INDEX_PATH))
-embeddings = np.load(EMBEDDINGS_PATH)
 with open(METADATA_PATH, "r", encoding="utf-8") as f:
     metadata = json.load(f)
 
