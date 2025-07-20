@@ -7,6 +7,7 @@ from symspellpy import SymSpell, Verbosity
 from transformers.pipelines import pipeline
 from context_utils import expand_graph
 from summary_formatter import format_summary
+from prompt_builder import build_prompt
 
 from Start import SETTINGS
 
@@ -121,9 +122,32 @@ def main(project_folder):
         last = indices[0]
 
         print("\n🎯 Top Matches:")
-        summary = format_summary(indices[0], metadata, node_map)
+        summary = format_summary(
+            indices[0],
+            metadata,
+            node_map,
+            save_path=str(BASE_DIR / "last_summary.txt"),
+            base_dir=SETTINGS.get("project_root"),
+        )
         print(summary)
         print()
+
+        follow = input("What problem are you trying to solve?\n> ").strip()
+        prompt_text = build_prompt(
+            METADATA_PATH,
+            CALL_GRAPH_PATH,
+            [int(i) for i in indices[0]],
+            follow,
+            base_dir=SETTINGS.get("project_root"),
+            save_path=str(BASE_DIR / "initial_prompt.txt"),
+        )
+        print("\nGenerated initial prompt:\n")
+        print(prompt_text)
+        print()
+        if not SETTINGS.get("api_key"):
+            print("No API key found in settings.json under 'api_key'. Provide one to automatically query an LLM.")
+        else:
+            print("Use the above prompt with your configured API key.")
 
 
 if __name__ == "__main__":

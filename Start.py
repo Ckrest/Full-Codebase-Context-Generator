@@ -17,6 +17,7 @@ DEFAULT_SETTINGS = {
     "paths": {
         "output_dir": "extracted",
     },
+    "api_key": "",
     "embedding": {"embedding_dim": 384},
     "query": {
         "top_k_results": 20,
@@ -201,6 +202,7 @@ def main():
 
     project_name = project_path.name
     SETTINGS["default_project"] = project_name
+    SETTINGS["project_root"] = str(project_path.resolve())
 
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     call_graph_path = out_dir / "call_graph.json"
