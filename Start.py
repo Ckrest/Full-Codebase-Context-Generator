@@ -8,31 +8,73 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# Default configuration used by all tools
+DEFAULT_SETTINGS = {
+    "llm_model": "BAAI/bge-small-en",  # example local model
+    "local_model_path": "",
+    "output_dir": "extracted",
+    "embedding_dim": 384,
+    "top_k_results": 20,
+    "chunk_size": 1000,
+    "context_hops": 1,
+    "max_neighbors": 5,
+    "allowed_extensions": [
+        ".py",
+        ".js",
+        ".ts",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".md",
+        ".txt",
+        ".html",
+        ".htm",
+    ],
+    "exclude_dirs": [
+        "__pycache__",
+        ".git",
+        "node_modules",
+        ".venv",
+        "venv",
+        "dist",
+        "build",
+        ".idea",
+        ".vscode",
+        ".pytest_cache",
+    ],
+}
+
+
+def ensure_example_settings():
+    """Synchronize settings.example.json with DEFAULT_SETTINGS."""
+
+    example_path = "settings.example.json"
+    template = {"_comment": "Copy this file to settings.json and modify as needed"}
+    template.update(DEFAULT_SETTINGS)
+
+    current = {}
+    if os.path.exists(example_path):
+        try:
+            with open(example_path, "r", encoding="utf-8") as f:
+                current = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            current = {}
+
+    if current != template:
+        with open(example_path, "w", encoding="utf-8") as f:
+            json.dump(template, f, indent=2)
+
+
 def load_settings():
     """Load settings from settings.json and ensure all keys are present.
 
     If the file is missing it will be created with the default values. If it
     exists but is missing keys, those keys will be added and the file updated.
+    The ``settings.example.json`` file is also kept in sync with
+    ``DEFAULT_SETTINGS``.
     """
 
-    default_settings = {
-        "llm_model": "BAAI/bge-small-en",  # example local model
-        "local_model_path": "",
-        "output_dir": "extracted",
-        "embedding_dim": 384,
-        "top_k_results": 20,
-        "chunk_size": 1000,
-        "context_hops": 1,
-        "max_neighbors": 5,
-        "allowed_extensions": [
-            ".py", ".js", ".ts", ".json", ".yaml", ".yml",
-            ".md", ".txt", ".html", ".htm"
-        ],
-        "exclude_dirs": [
-            "__pycache__", ".git", "node_modules", ".venv", "venv",
-            "dist", "build", ".idea", ".vscode", ".pytest_cache"
-        ],
-    }
+    ensure_example_settings()
 
     settings_path = "settings.json"
     settings = {}
@@ -50,7 +92,7 @@ def load_settings():
         logger.info("settings.json not found. Creating one with default settings.")
 
     updated = False
-    for key, value in default_settings.items():
+    for key, value in DEFAULT_SETTINGS.items():
         if key not in settings:
             settings[key] = value
             updated = True
@@ -62,7 +104,7 @@ def load_settings():
         except IOError as e:
             logger.warning(f"Failed to write settings.json: {e}")
 
-    merged = default_settings.copy()
+    merged = DEFAULT_SETTINGS.copy()
     merged.update(settings)
     return merged
 
