@@ -4,7 +4,7 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell, Verbosity
-from transformers import pipeline
+from transformers.pipelines import pipeline
 from context_utils import expand_graph
 
 from Start import SETTINGS
