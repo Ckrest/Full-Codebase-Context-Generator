@@ -23,6 +23,7 @@ DEFAULT_SETTINGS = {
         "chunk_size": 1000,
         "context_hops": 1,
         "max_neighbors": 5,
+        "bidirectional": True,
     },
     "extraction": {
         "allowed_extensions": [

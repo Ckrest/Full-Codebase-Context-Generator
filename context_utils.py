@@ -8,16 +8,25 @@ def load_graph(path: Path) -> dict:
         return json.load(f)
 
 
-def build_neighbor_map(graph: dict) -> dict:
+def build_neighbor_map(graph: dict, bidirectional: bool = True) -> dict:
+    """Return adjacency map from a call graph dictionary."""
     neighbors = {n['id']: set() for n in graph.get('nodes', [])}
     for edge in graph.get('edges', []):
         neighbors.setdefault(edge['from'], set()).add(edge['to'])
-        neighbors.setdefault(edge['to'], set()).add(edge['from'])
+        if bidirectional:
+            neighbors.setdefault(edge['to'], set()).add(edge['from'])
     return neighbors
 
 
-def expand_neighborhood(graph: dict, node_id: str, depth: int = 1, limit: int | None = None) -> list[str]:
-    neighbor_map = build_neighbor_map(graph)
+def expand_graph(
+    graph: dict,
+    node_id: str,
+    depth: int = 1,
+    limit: int | None = None,
+    bidirectional: bool = True,
+) -> list[str]:
+    """Breadth-first expansion of a node's neighbors."""
+    neighbor_map = build_neighbor_map(graph, bidirectional=bidirectional)
     visited = {node_id}
     result = []
     queue = deque([(node_id, 0)])
@@ -35,11 +44,27 @@ def expand_neighborhood(graph: dict, node_id: str, depth: int = 1, limit: int | 
     return result
 
 
-def gather_context(graph: dict, node_id: str, depth: int = 1, limit: int | None = None) -> str:
+def expand_neighborhood(
+    graph: dict, node_id: str, depth: int = 1, limit: int | None = None
+) -> list[str]:
+    """Backward compatible wrapper for expand_graph."""
+    return expand_graph(graph, node_id, depth=depth, limit=limit, bidirectional=True)
+
+
+def gather_context(
+    graph: dict,
+    node_id: str,
+    depth: int = 1,
+    limit: int | None = None,
+    bidirectional: bool = True,
+) -> str:
+    """Collect code from a node and its neighbors."""
     node_map = {n['id']: n for n in graph.get('nodes', [])}
     base = node_map.get(node_id, {})
     texts = [base.get('code', '')]
-    for nb_id in expand_neighborhood(graph, node_id, depth=depth, limit=limit):
+    for nb_id in expand_graph(
+        graph, node_id, depth=depth, limit=limit, bidirectional=bidirectional
+    ):
         nb = node_map.get(nb_id)
         if nb:
             texts.append(nb.get('code', ''))

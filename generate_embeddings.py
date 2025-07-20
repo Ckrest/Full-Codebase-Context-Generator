@@ -26,11 +26,14 @@ def main(project_folder):
 
     depth = SETTINGS["context"].get("context_hops", 1)
     limit = SETTINGS["context"].get("max_neighbors", 5)
+    bidir = SETTINGS["context"].get("bidirectional", True)
 
     print("Encoding function nodes...")
     for node in nodes:
         name = node.get("name", "")
-        context = gather_context(graph, node["id"], depth=depth, limit=limit)
+        context = gather_context(
+            graph, node["id"], depth=depth, limit=limit, bidirectional=bidir
+        )
         full_text = f"{name}\n{context}"
         texts.append(full_text)
         metadata.append({
