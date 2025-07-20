@@ -4,6 +4,7 @@ import numpy as np
 import faiss
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+from context_utils import gather_context
 
 # === Settings loader ===
 def load_settings():
@@ -14,7 +15,9 @@ def load_settings():
         "default_project": "ComfyUI",
         "embedding_dim": 384,
         "top_k_results": 20,
-        "chunk_size": 1000
+        "chunk_size": 1000,
+        "context_hops": 1,
+        "max_neighbors": 5
     }
     
     settings_path = "settings.json"
@@ -49,11 +52,14 @@ nodes = graph["nodes"]
 texts = []
 metadata = []
 
+depth = SETTINGS.get("context_hops", 1)
+limit = SETTINGS.get("max_neighbors", 5)
+
 print("Encoding function nodes...")
 for node in nodes:
     name = node.get("name", "")
-    code = node.get("code", "")
-    full_text = f"{name}\n{code}"
+    context = gather_context(graph, node["id"], depth=depth, limit=limit)
+    full_text = f"{name}\n{context}"
     texts.append(full_text)
     metadata.append({
         "id": node["id"],

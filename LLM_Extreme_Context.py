@@ -25,6 +25,8 @@ def load_settings():
         "embedding_dim": 384,
         "top_k_results": 20,
         "chunk_size": 1000,
+        "context_hops": 1,
+        "max_neighbors": 5,
         "allowed_extensions": [".py", ".js", ".ts", ".json", ".yaml", ".yml", ".md", ".txt", ".html", ".htm"],
         "exclude_dirs": ["__pycache__", ".git", "node_modules", ".venv", "venv", "dist", "build", ".idea", ".vscode", ".pytest_cache"]
     }
@@ -167,3 +169,40 @@ def extract_from_markdown(filepath: str) -> List[Dict]:
             "estimated_tokens": estimate_tokens(content)
         })
     return results
+
+# === Call graph utilities ===
+import networkx as nx
+from pathlib import Path
+
+
+def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
+    G = nx.DiGraph()
+    name_to_ids = {}
+    for entry in entries:
+        if entry["type"] != "function":
+            continue
+        func_id = f"{entry['file_path']}::{entry['name']}"
+        G.add_node(func_id, **entry)
+        name_to_ids.setdefault(entry["name"], []).append(func_id)
+    for entry in entries:
+        if entry["type"] != "function":
+            continue
+        caller_id = f"{entry['file_path']}::{entry['name']}"
+        for callee_name in entry.get("called_functions", []):
+            for callee_id in name_to_ids.get(callee_name, []):
+                G.add_edge(caller_id, callee_id)
+    return G
+
+
+def save_graph_json(graph: nx.DiGraph, path: Path):
+    data = {"nodes": [], "edges": []}
+    for node in graph.nodes:
+        calls = [t for _, t in graph.out_edges(node)]
+        called_by = [s for s, _ in graph.in_edges(node)]
+        ndata = {"id": node, **graph.nodes[node], "calls": calls, "called_by": called_by}
+        data["nodes"].append(ndata)
+    for u, v in graph.edges:
+        data["edges"].append({"from": u, "to": v})
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+

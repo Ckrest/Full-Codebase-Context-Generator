@@ -4,6 +4,7 @@ from pathlib import Path
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from context_utils import expand_neighborhood
 
 # === Settings loader ===
 def load_settings():
@@ -14,7 +15,9 @@ def load_settings():
         "default_project": "ComfyUI",
         "embedding_dim": 384,
         "top_k_results": 20,
-        "chunk_size": 1000
+        "chunk_size": 1000,
+        "context_hops": 1,
+        "max_neighbors": 5
     }
     
     settings_path = "settings.json"
@@ -55,16 +58,40 @@ model = SentenceTransformer(MODEL_NAME)
 index = faiss.read_index(str(INDEX_PATH))
 with open(METADATA_PATH, "r", encoding="utf-8") as f:
     metadata = json.load(f)
+with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:
+    graph = json.load(f)
+node_map = {n["id"]: n for n in graph.get("nodes", [])}
 
 # === QUERY LOOP ===
+last = None
 while True:
-    query = input("🧠 What is the query? (or type 'exit')\n> ")
+    query = input("🧠 What is the query? (type 'exit' or 'neighbors <n>')\n> ")
     if query.strip().lower() in {"exit", "quit"}:
         print("👋 Exiting.")
         break
 
+    if query.startswith("neighbors"):
+        if not last:
+            print("No previous search results.")
+            continue
+        try:
+            num = int(query.split()[1]) - 1
+            idx = last[num]
+        except Exception:
+            print("Usage: neighbors <result_number>")
+            continue
+        meta = metadata[idx]
+        nb_ids = expand_neighborhood(graph, meta["id"], depth=SETTINGS.get("context_hops", 1), limit=SETTINGS.get("max_neighbors", 5))
+        print("Neighbors:")
+        for nid in nb_ids:
+            node = node_map.get(nid, {})
+            print(f"- {node.get('name')} — {node.get('file_path')}")
+        print()
+        continue
+
     query_vec = model.encode([query], normalize_embeddings=True)
     D, I = index.search(np.array(query_vec).astype(np.float32), TOP_K)
+    last = I[0]
 
     print("\n🎯 Top Matches:")
     for rank, idx in enumerate(I[0]):
