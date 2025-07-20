@@ -17,10 +17,12 @@ This project uses a `settings.json` file for configuration. To get started:
 - **chunk_size**: Text chunk size for processing (default: 1000)
 - **allowed_extensions**: File extensions to include in processing
 - **exclude_dirs**: Directories to exclude from processing
+- **local_model_path**: Optional path to a local embedding model
 
 ### Files
 
 - `LLM_Extream_Context.py`: Main extraction script
+- `Start.py`: Entry point for running other utilities
 - `generate_embeddings.py`: Generate embeddings from call graph
 - `query_sniper.py`: Interactive query interface
 - `inspect_graph.py`: Graph analysis and visualization
@@ -30,3 +32,4 @@ This project uses a `settings.json` file for configuration. To get started:
 ## Usage
 
 The `settings.json` file is automatically loaded by all scripts. If the file doesn't exist, default values are used.
+Run `python Start.py <command>` to execute tools where `<command>` is `generate`, `query`, or `inspect`.

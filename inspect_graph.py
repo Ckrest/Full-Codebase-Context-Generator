@@ -5,29 +5,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import networkx as nx
 
-# === Settings loader ===
-def load_settings():
-    """Load settings from settings.json with fallback defaults"""
-    default_settings = {
-        "output_dir": "extracted",
-        "default_project": "ComfyUI"
-    }
-    
-    settings_path = "settings.json"
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-                default_settings.update(settings)
-        except (json.JSONDecodeError, IOError) as e:
-            print(f"Warning: Could not load settings.json: {e}. Using defaults.")
-    else:
-        print("settings.json not found. Using default settings.")
-    
-    return default_settings
-
-# Load settings
-SETTINGS = load_settings()
+from Start import SETTINGS
 
 def degree_plot(data):
     G = nx.DiGraph()
@@ -71,7 +49,7 @@ def analyze_graph(data):
     for name, count in name_counter.most_common(10):
         print(f"{count:5}  {name}")
 
-if __name__ == "__main__":
+def main():
     extracted_root = Path(SETTINGS["output_dir"])
     if not extracted_root.exists():
         print(f"No '{SETTINGS['output_dir']}/' directory found.")
@@ -100,3 +78,7 @@ if __name__ == "__main__":
 
     data = load_call_graph(call_graph_path)
     analyze_graph(data)
+
+
+if __name__ == "__main__":
+    main()
