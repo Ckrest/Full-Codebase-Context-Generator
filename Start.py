@@ -45,6 +45,7 @@ DEFAULT_SETTINGS = {
         "top_k_results": 5,
         "use_spellcheck": False,
         "sub_question_count": 0,
+        "prompt_suggestion_count": 0,
     },
     "context": {
         "context_hops": 1,
@@ -208,10 +209,10 @@ def run_generate_embeddings(project_name):
     gen_main(project_name)
 
 
-def run_query(project_name):
+def run_query(project_name, problem):
     from query_sniper import main as query_main
     logger.info("Launching interactive query tool...")
-    query_main(project_name)
+    query_main(project_name, problem)
 
 
 def main():
@@ -228,6 +229,7 @@ def main():
         parser.error(f"Path '{project_path}' does not exist")
 
     project_name = project_path.name
+    problem = input("\ud83c\udfaf What problem are you trying to solve?\n> ").strip()
     SETTINGS["default_project"] = project_name
     SETTINGS["project_root"] = str(project_path.resolve())
 
@@ -248,7 +250,7 @@ def main():
     else:
         logger.info("Using existing embeddings at %s", embeddings_path)
 
-    run_query(project_name)
+    run_query(project_name, problem)
 
 
 if __name__ == "__main__":
