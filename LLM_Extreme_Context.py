@@ -8,42 +8,14 @@ from bs4 import BeautifulSoup, Comment
 from typing import List, Dict, Optional
 from tree_sitter import Parser
 import pathspec
-from tree_sitter_language_pack import  get_parser
+from tree_sitter_language_pack import get_parser
 from tqdm import tqdm
 import re
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === Settings loader ===
-def load_settings():
-    """Load settings from settings.json with fallback defaults"""
-    default_settings = {
-        "llm_model": "BAAI/bge-small-en",
-        "output_dir": "extracted",
-        "default_project": "ComfyUI",
-        "embedding_dim": 384,
-        "top_k_results": 20,
-        "chunk_size": 1000,
-        "context_hops": 1,
-        "max_neighbors": 5,
-        "allowed_extensions": [".py", ".js", ".ts", ".json", ".yaml", ".yml", ".md", ".txt", ".html", ".htm"],
-        "exclude_dirs": ["__pycache__", ".git", "node_modules", ".venv", "venv", "dist", "build", ".idea", ".vscode", ".pytest_cache"]
-    }
-    settings_path = "settings.json"
-    if os.path.exists(settings_path):
-        try:
-            with open(settings_path, "r", encoding="utf-8") as f:
-                settings = json.load(f)
-                default_settings.update(settings)
-        except (json.JSONDecodeError, IOError) as e:
-            logger.warning(f"Could not load settings.json: {e}. Using defaults.")
-    else:
-        logger.info("settings.json not found. Using default settings.")
-    return default_settings
-
-# Load settings
-SETTINGS = load_settings()
+from Start import SETTINGS
 
 # === Files included and excluded in search ===
 ALLOWED_EXTENSIONS = set(SETTINGS["allowed_extensions"])
