@@ -367,27 +367,36 @@ def load_gitignore(root: str):
 
 
 def crawl_directory(root: str, respect_gitignore: bool = True) -> List[Dict]:
+    """Walk ``root`` and run extractors on all matching files."""
     all_results: List[Dict] = []
     spec = load_gitignore(root) if respect_gitignore else None
+
+    paths: List[tuple[str, str]] = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
         for filename in filenames:
-            rel = os.path.relpath(os.path.join(dirpath, filename), root)
-            ext = os.path.splitext(filename)[1].lower()
-            if ext not in ALLOWED_EXTENSIONS:
-                SKIPPED_LOG.append({"file": rel, "reason": "extension not allowed"})
-                continue
-            if spec and spec.match_file(rel):
-                SKIPPED_LOG.append({"file": rel, "reason": ".gitignore"})
-                continue
-            extractor = EXTENSION_MAP.get(ext)
-            if extractor:
-                entries = extractor(os.path.join(dirpath, filename))
-            else:
-                SKIPPED_LOG.append({"file": rel, "reason": "no extractor"})
-                continue
-            all_results.extend(entries)
-    logger.info(f"Parsed {len(all_results)} entries, skipped {len(SKIPPED_LOG)} files")
+            paths.append((dirpath, filename))
+
+    for dirpath, filename in tqdm(paths, desc="Scanning files", unit="file"):
+        rel = os.path.relpath(os.path.join(dirpath, filename), root)
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            logger.debug("Skipping %s: extension not allowed", rel)
+            SKIPPED_LOG.append({"file": rel, "reason": "extension not allowed"})
+            continue
+        if spec and spec.match_file(rel):
+            logger.debug("Skipping %s: ignored by .gitignore", rel)
+            SKIPPED_LOG.append({"file": rel, "reason": ".gitignore"})
+            continue
+        extractor = EXTENSION_MAP.get(ext)
+        if extractor:
+            entries = extractor(os.path.join(dirpath, filename))
+        else:
+            logger.debug("Skipping %s: no extractor", rel)
+            SKIPPED_LOG.append({"file": rel, "reason": "no extractor"})
+            continue
+        all_results.extend(entries)
+    logger.info("Parsed %s entries, skipped %s files", len(all_results), len(SKIPPED_LOG))
     return all_results
 
 

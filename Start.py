@@ -95,6 +95,7 @@ def ensure_example_settings():
         with open(example_path, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2, sort_keys=True)
             f.write("\n")
+        logger.info("Updated %s with default settings", example_path)
 
 
 def load_settings():
@@ -163,7 +164,9 @@ def run_extract(project_path: Path, project_name: str):
         save_graph_json,
     )
 
+    logger.info("Crawling source files in %s", project_path)
     entries = crawl_directory(str(project_path), respect_gitignore=True)
+    logger.info("Building call graph...")
     graph = build_call_graph(entries)
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -174,16 +177,19 @@ def run_extract(project_path: Path, project_name: str):
 
 def run_generate_embeddings(project_name):
     from generate_embeddings import main as gen_main
+    logger.info("Generating embeddings for %s", project_name)
     gen_main(project_name)
 
 
 def run_query(project_name):
     from query_sniper import main as query_main
+    logger.info("Launching interactive query tool...")
     query_main(project_name)
 
 
 def run_inspect(project_name):
     from inspect_graph import main as inspect_main
+    logger.info("Running graph inspection utility...")
     inspect_main(project_name)
 
 

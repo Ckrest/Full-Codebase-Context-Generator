@@ -79,3 +79,9 @@ Two optional features help refine search queries:
 
 Enable these options in `settings.json` under the `query` section. The `transformers`
 package will download the paraphrasing model the first time it is used.
+
+### Debug Logging
+
+All tools output progress information using the `logging` module and `tqdm`
+progress bars. Run scripts with the `PYTHONLOGLEVEL=DEBUG` environment variable
+to see verbose details while files are scanned and embeddings are generated.

@@ -14,6 +14,7 @@ from Start import SETTINGS
 
 def build_symspell(metadata):
     sym = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
+    print("Building spellcheck dictionary...")
     for item in metadata:
         name = item.get("name", "")
         for token in str(name).split():
@@ -74,6 +75,7 @@ def main(project_folder):
             SETTINGS["query"].get("rephrase_model_path") or "Vamsi/T5_Paraphrase_Paws"
         )
         paraphraser = pipeline("text2text-generation", model=model_or_path)
+        print("Loaded paraphrasing model for query rephrasing")
 
     last = None
     while True:
@@ -112,6 +114,7 @@ def main(project_folder):
         queries = [correct_query(symspell, query)]
         if paraphraser:
             try:
+                print("Rephrasing query...")
                 results = paraphraser(query, num_return_sequences=rephrase_count-1, num_beams=max(4, rephrase_count))
                 queries.extend([r["generated_text"] for r in results])
             except Exception as e:
