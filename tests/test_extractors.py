@@ -46,3 +46,84 @@ def bar():
     node_map = {n["id"]: n for n in data["nodes"]}
     assert bar_id in node_map[foo_id]["called_by"]
     assert foo_id in node_map[bar_id]["calls"]
+
+
+def test_method_call_extraction(tmp_path):
+    code = """
+class A:
+    def foo(self):
+        pass
+
+    def bar(self):
+        self.foo()
+"""
+    f = tmp_path / "sample.py"
+    f.write_text(code)
+    results = lec.extract_from_python(str(f))
+    bar_entry = next(r for r in results if r["name"] == "bar")
+    assert "foo" in bar_entry["called_functions"]
+
+
+def test_qualified_names(tmp_path):
+    code1 = """
+def foo():
+    pass
+
+def bar():
+    foo()
+"""
+    code2 = """
+def foo():
+    pass
+"""
+    f1 = tmp_path / "a.py"
+    f2 = tmp_path / "b.py"
+    f1.write_text(code1)
+    f2.write_text(code2)
+    entries = lec.extract_from_python(str(f1)) + lec.extract_from_python(str(f2))
+    graph = lec.build_call_graph(entries)
+    a_bar = f"{f1}::bar"
+    a_foo = f"{f1}::foo"
+    b_foo = f"{f2}::foo"
+    assert graph.has_edge(a_bar, a_foo)
+    assert not graph.has_edge(a_bar, b_foo)
+
+
+def test_cross_file_import(tmp_path):
+    utils = """
+def clean():
+    pass
+"""
+    main = """
+from utils import clean
+
+def run():
+    clean()
+"""
+    utils_f = tmp_path / "utils.py"
+    main_f = tmp_path / "main.py"
+    utils_f.write_text(utils)
+    main_f.write_text(main)
+    entries = lec.extract_from_python(str(utils_f)) + lec.extract_from_python(str(main_f))
+    graph = lec.build_call_graph(entries)
+    run_id = f"{main_f}::run"
+    clean_id = f"{utils_f}::clean"
+    assert graph.has_edge(run_id, clean_id)
+
+
+def test_edge_weights(tmp_path):
+    code = """
+def foo():
+    pass
+
+def bar():
+    foo()
+    foo()
+"""
+    f = tmp_path / "sample.py"
+    f.write_text(code)
+    entries = lec.extract_from_python(str(f))
+    graph = lec.build_call_graph(entries)
+    bar_id = f"{f}::bar"
+    foo_id = f"{f}::foo"
+    assert graph[bar_id][foo_id]["weight"] == 2

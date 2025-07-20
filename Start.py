@@ -24,6 +24,8 @@ DEFAULT_SETTINGS = {
         "context_hops": 1,
         "max_neighbors": 5,
         "bidirectional": True,
+        "outbound_weight": 1.0,
+        "inbound_weight": 1.0,
     },
     "extraction": {
         "allowed_extensions": [

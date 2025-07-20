@@ -27,12 +27,20 @@ def main(project_folder):
     depth = SETTINGS["context"].get("context_hops", 1)
     limit = SETTINGS["context"].get("max_neighbors", 5)
     bidir = SETTINGS["context"].get("bidirectional", True)
+    out_w = SETTINGS["context"].get("outbound_weight", 1.0)
+    in_w = SETTINGS["context"].get("inbound_weight", 1.0)
 
     print("Encoding function nodes...")
     for node in nodes:
         name = node.get("name", "")
         context = gather_context(
-            graph, node["id"], depth=depth, limit=limit, bidirectional=bidir
+            graph,
+            node["id"],
+            depth=depth,
+            limit=limit,
+            bidirectional=bidir,
+            outbound_weight=out_w,
+            inbound_weight=in_w,
         )
         full_text = f"{name}\n{context}"
         texts.append(full_text)
