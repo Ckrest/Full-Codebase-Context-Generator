@@ -8,6 +8,17 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def sanitize_paths(data: dict) -> None:
+    """Replace backslashes in any path-like string values."""
+    for key, value in data.items():
+        if isinstance(value, dict):
+            sanitize_paths(value)
+        elif isinstance(value, str) and (
+            "path" in key.lower() or "dir" in key.lower() or key.lower().endswith("_root")
+        ):
+            data[key] = value.replace("\\", "/")
+
+
 # Default configuration used by all tools
 DEFAULT_SETTINGS = {
     "LLM_model": {
@@ -99,6 +110,7 @@ def ensure_example_settings():
             current = {}
 
     if current != template:
+        sanitize_paths(template)
         with open(example_path, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
             f.write("\n")
@@ -129,6 +141,7 @@ def load_settings():
     else:
         logger.info("settings.json not found. Creating one with default settings.")
         settings = json.loads(json.dumps(DEFAULT_SETTINGS))
+        sanitize_paths(settings)
         try:
             with open(settings_path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=2)
