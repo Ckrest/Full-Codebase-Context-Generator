@@ -159,6 +159,9 @@ def run_extract(project_path: Path, project_name: str):
         extract_from_html,
         extract_from_markdown,
         extract_from_javascript,
+        extract_from_json,
+        extract_from_yaml,
+        extract_from_txt,
         build_call_graph,
         save_graph_json,
     )
@@ -179,6 +182,12 @@ def run_extract(project_path: Path, project_name: str):
                 entries.extend(extract_from_html(str(fpath)))
             elif ext in {".md", ".markdown"}:
                 entries.extend(extract_from_markdown(str(fpath)))
+            elif ext == ".json":
+                entries.extend(extract_from_json(str(fpath)))
+            elif ext in {".yaml", ".yml"}:
+                entries.extend(extract_from_yaml(str(fpath)))
+            elif ext == ".txt":
+                entries.extend(extract_from_txt(str(fpath)))
 
     graph = build_call_graph(entries)
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
