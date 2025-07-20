@@ -1,23 +1,8 @@
 import json
 from collections import Counter
 from pathlib import Path
-import matplotlib.pyplot as plt
-import networkx as nx
 
 from Start import SETTINGS
-
-def degree_plot(data):
-    G = nx.DiGraph()
-    for node in data["nodes"]:
-        G.add_node(node["id"])
-    for edge in data["edges"]:
-        G.add_edge(edge["from"], edge["to"])
-    degrees = [d for _, d in G.degree()]
-    plt.hist(degrees, bins=50)
-    plt.title("Node Degree Distribution")
-    plt.xlabel("Degree")
-    plt.ylabel("Count")
-    plt.show()
 
 def load_call_graph(path):
     with open(path, "r", encoding="utf-8") as f:

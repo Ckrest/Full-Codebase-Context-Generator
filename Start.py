@@ -194,12 +194,6 @@ def run_query(project_name):
     query_main(project_name)
 
 
-def run_inspect(project_name):
-    from inspect_graph import main as inspect_main
-    logger.info("Running graph inspection utility...")
-    inspect_main(project_name)
-
-
 def main():
     parser = argparse.ArgumentParser(description="LLM Extreme Context")
     parser.add_argument("path", nargs="?", help="Project directory to analyze")

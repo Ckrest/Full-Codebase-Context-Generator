@@ -53,19 +53,6 @@ def expand_graph(
     return result
 
 
-def expand_neighborhood(
-    graph: dict, node_id: str, depth: int = 1, limit: int | None = None
-) -> list[str]:
-    """Backward compatible wrapper for expand_graph."""
-    return expand_graph(
-        graph,
-        node_id,
-        depth=depth,
-        limit=limit,
-        bidirectional=True,
-    )
-
-
 def gather_context(
     graph: dict,
     node_id: str,
