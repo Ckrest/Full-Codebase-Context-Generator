@@ -3,9 +3,37 @@ from pathlib import Path
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from symspellpy import SymSpell, Verbosity
+from transformers import pipeline
 from context_utils import expand_graph
 
 from Start import SETTINGS
+
+
+def build_symspell(metadata):
+    sym = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
+    for item in metadata:
+        name = item.get("name", "")
+        for token in str(name).split():
+            sym.create_dictionary_entry(token, 1)
+    return sym
+
+
+def correct_query(symspell, query: str) -> str:
+    if not symspell:
+        return query
+    suggestions = symspell.lookup_compound(query, max_edit_distance=2)
+    if suggestions:
+        return suggestions[0].term
+    return query
+
+
+def average_embeddings(model, texts) -> np.ndarray:
+    vecs = model.encode(list(texts), normalize_embeddings=True)
+    vecs = np.asarray(vecs, dtype=float)
+    if vecs.ndim == 1:
+        vecs = vecs.reshape(1, -1)
+    return np.mean(vecs, axis=0, keepdims=True)
 
 
 def main(project_folder):
@@ -33,6 +61,17 @@ def main(project_folder):
     with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:
         graph = json.load(f)
     node_map = {n["id"]: n for n in graph.get("nodes", [])}
+
+    symspell = None
+    paraphraser = None
+    if SETTINGS["query"].get("use_spellcheck"):
+        symspell = build_symspell(metadata)
+    rephrase_count = int(SETTINGS["query"].get("rephrase_count", 1))
+    if rephrase_count > 1:
+        model_or_path = (
+            SETTINGS["query"].get("rephrase_model_path") or "Vamsi/T5_Paraphrase_Paws"
+        )
+        paraphraser = pipeline("text2text-generation", model=model_or_path)
 
     last = None
     while True:
@@ -68,8 +107,16 @@ def main(project_folder):
             print()
             continue
 
-        query_vec = model.encode([query], normalize_embeddings=True)
-        distances, indices = index.search(np.array(query_vec).astype(np.float32), TOP_K)
+        queries = [correct_query(symspell, query)]
+        if paraphraser:
+            try:
+                results = paraphraser(query, num_return_sequences=rephrase_count-1, num_beams=max(4, rephrase_count))
+                queries.extend([r["generated_text"] for r in results])
+            except Exception as e:
+                print(f"Paraphrasing failed: {e}")
+
+        query_vec = average_embeddings(model, queries)
+        distances, indices = index.search(np.asarray(query_vec, dtype=np.float32), TOP_K)
         last = indices[0]
 
         print("\n🎯 Top Matches:")

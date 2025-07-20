@@ -18,7 +18,12 @@ DEFAULT_SETTINGS = {
         "output_dir": "extracted",
     },
     "embedding": {"embedding_dim": 384},
-    "query": {"top_k_results": 20},
+    "query": {
+        "top_k_results": 20,
+        "use_spellcheck": False,
+        "rephrase_count": 1,
+        "rephrase_model_path": "",
+    },
     "context": {
         "chunk_size": 1000,
         "context_hops": 1,
@@ -88,7 +93,7 @@ def ensure_example_settings():
 
     if current != template:
         with open(example_path, "w", encoding="utf-8") as f:
-            json.dump(template, f, indent=2)
+            json.dump(template, f, indent=2, sort_keys=True)
 
 
 def load_settings():
