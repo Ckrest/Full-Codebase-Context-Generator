@@ -76,6 +76,7 @@ def run_extract(project_path: Path, project_name: str):
         extract_from_python,
         extract_from_html,
         extract_from_markdown,
+        extract_from_javascript,
         build_call_graph,
         save_graph_json,
     )
@@ -90,6 +91,8 @@ def run_extract(project_path: Path, project_name: str):
             fpath = Path(root) / fname
             if ext == ".py":
                 entries.extend(extract_from_python(str(fpath)))
+            elif ext in {".js", ".ts"}:
+                entries.extend(extract_from_javascript(str(fpath)))
             elif ext in {".html", ".htm"}:
                 entries.extend(extract_from_html(str(fpath)))
             elif ext in {".md", ".markdown"}:
