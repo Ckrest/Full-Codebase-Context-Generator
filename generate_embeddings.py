@@ -11,10 +11,11 @@ def main(project_folder):
     CALL_GRAPH_PATH = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
     OUTPUT_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     EMBEDDING_DIM = SETTINGS["embedding"]["embedding_dim"]
-    MODEL_NAME = SETTINGS["model"]["llm_model"]
+    model_path = SETTINGS.get("encoder_model_path")
 
     print("Loading embedding model...")
-    model_path = SETTINGS.get("model", {}).get("local_model_path") or MODEL_NAME
+    if not model_path:
+        raise ValueError("encoder_model_path is not set in settings.json")
     model = SentenceTransformer(model_path)
 
     print(f"Loading call graph from {CALL_GRAPH_PATH} ...")

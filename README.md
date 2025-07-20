@@ -29,9 +29,10 @@ pytest -q
 
 ### Settings Options
 
-Settings are grouped into categories for easier navigation:
+- Settings are grouped into categories for easier navigation:
 
-- **model** – `llm_model`, `local_model_path`
+- **LLM_model** – `api_key`, `api_type`, `local_path`
+- **encoder_model_path** – location of the sentence transformer model
 - **paths** – `output_dir`
 - **embedding** – `embedding_dim`
 - **query** – `top_k_results`, `use_spellcheck`, `rephrase_count`,

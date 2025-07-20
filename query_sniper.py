@@ -7,16 +7,12 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell, Verbosity
 from transformers.pipelines import pipeline
-from google import genai
+from llm_utils import get_llm_model, call_llm
 
 from context_utils import expand_graph
 from summary_formatter import format_summary
 from prompt_builder import build_prompt
 from Start import SETTINGS
-
-# Only run this block for Gemini Developer API
-client = genai.Client(api_key='GEMINI_API_KEY')
-
 
 def build_symspell(metadata):
     """Builds a SymSpell dictionary for spell correction."""
@@ -48,32 +44,10 @@ def average_embeddings(model, texts) -> np.ndarray:
     return np.mean(vecs, axis=0, keepdims=True)
 
 
-# REFACTORED FUNCTION
-def call_llm(model_obj, prompt_text, temperature=0.6):
-    """
-    Calls the generative model with the provided prompt using a pre-initialized model object.
-    """
-    # The model object is now passed in, not created here.
-    if not model_obj:
-        return "❌ Generative model not initialized. Check API key in settings."
-    try:
-        response = model_obj.generate_content(
-            prompt_text,
-            generation_config={
-                "temperature": temperature,
-                "top_p": 1.0,
-                "max_output_tokens": 1000,
-            },
-        )
-        return response.text.strip()
-    except Exception as e:
-        return f"💥 Gemini query failed: {e}"
-
-
 def main(project_folder):
     """Interactive search of the generated embeddings."""
     # --- Configuration Loading ---
-    MODEL_NAME = SETTINGS["model"]["llm_model"]
+    model_path = SETTINGS.get("encoder_model_path")
     BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
@@ -81,15 +55,17 @@ def main(project_folder):
     TOP_K = SETTINGS["query"]["top_k_results"]
 
     print("🔧 Running... Model, context, and settings info:")
-    print(f"Model: {MODEL_NAME}")
+    print(f"Encoder model: {model_path}")
     print(f"Context source: {CALL_GRAPH_PATH}")
     print(f"Index file: {INDEX_PATH}")
     print(f"Top-K results: {TOP_K}\n")
 
     # --- Model and Data Loading ---
     print("🚀 Loading models and data...")
-    model_path = SETTINGS.get("model", {}).get("local_model_path") or MODEL_NAME
+    if not model_path:
+        raise ValueError("encoder_model_path is not set in settings.json")
     model = SentenceTransformer(model_path)
+    llm_model = get_llm_model()
     index = faiss.read_index(str(INDEX_PATH))
     with open(METADATA_PATH, "r", encoding="utf-8") as f:
         metadata = json.load(f)
@@ -189,14 +165,9 @@ def main(project_folder):
         print(prompt_text)
         print()
         
-        # FIXED: Call the LLM using the pre-initialized model object.
-        if ("insert is gemini api key here"):
+        if llm_model:
             print("⏳ Querying Gemini...")
-            response = client.models.generate_content(
-                model="gemini-2.5-pro",
-                contents=prompt_text,
-            )
-            FINAL_CONTEXT = response.text
+            FINAL_CONTEXT = call_llm(llm_model, prompt_text)
             print(FINAL_CONTEXT)
         else:
             print("Skipping LLM query as the model is not available.")
