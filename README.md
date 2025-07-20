@@ -36,7 +36,7 @@ Settings are grouped into categories for easier navigation:
 - **embedding** – `embedding_dim`
 - **query** – `top_k_results`, `use_spellcheck`, `rephrase_count`,
   `rephrase_model_path`
-- **context** – `chunk_size`, `context_hops`, `max_neighbors`, `bidirectional`
+- **context** – `context_hops`, `max_neighbors`, `bidirectional`
 - **extraction** – `allowed_extensions`, `exclude_dirs`, `comment_lookback_lines`,
   `token_estimate_ratio`, and `minified_js_detection` options
 - **visualization** – parameters controlling call graph rendering

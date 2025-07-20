@@ -2,7 +2,6 @@
   "_comment": "Copy this file to settings.json and modify as needed",
   "context": {
     "bidirectional": true,
-    "chunk_size": 1000,
     "context_hops": 1,
     "inbound_weight": 1.0,
     "max_neighbors": 5,
