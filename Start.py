@@ -155,10 +155,7 @@ SETTINGS = load_settings()
 def run_extract(project_path: Path, project_name: str):
     """Extract functions from the project and build the call graph."""
     from LLM_Extreme_Context import (
-        extract_from_python,
-        extract_from_html,
-        extract_from_markdown,
-        extract_from_javascript,
+        crawl_directory,
         extract_from_json,
         extract_from_yaml,
         extract_from_txt,
@@ -166,22 +163,7 @@ def run_extract(project_path: Path, project_name: str):
         save_graph_json,
     )
 
-    entries = []
-    for root, dirs, files in os.walk(project_path):
-        dirs[:] = [d for d in dirs if d not in SETTINGS["extraction"]["exclude_dirs"]]
-        for fname in files:
-            ext = Path(fname).suffix.lower()
-            if ext not in SETTINGS["extraction"]["allowed_extensions"]:
-                continue
-            fpath = Path(root) / fname
-            if ext == ".py":
-                entries.extend(extract_from_python(str(fpath)))
-            elif ext in {".js", ".ts"}:
-                entries.extend(extract_from_javascript(str(fpath)))
-            elif ext in {".html", ".htm"}:
-                entries.extend(extract_from_html(str(fpath)))
-            elif ext in {".md", ".markdown"}:
-                entries.extend(extract_from_markdown(str(fpath)))
+    entries = crawl_directory(str(project_path), respect_gitignore=True)
             elif ext == ".json":
                 entries.extend(extract_from_json(str(fpath)))
             elif ext in {".yaml", ".yml"}:

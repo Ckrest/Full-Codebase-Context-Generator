@@ -36,6 +36,10 @@ Settings are grouped into categories for easier navigation:
   `token_estimate_ratio`, and `minified_js_detection` options
 - **visualization** – parameters controlling call graph rendering
 
+The extraction step relies on `crawl_directory` which automatically skips files
+listed in `.gitignore` and only processes paths with extensions from
+`allowed_extensions`.
+
 When `bidirectional` is `True`, context expansion walks both callers and
 callees. Set it to `False` to only follow outgoing calls.
 
