@@ -15,8 +15,12 @@ def main(project_folder):
 
     print("Loading embedding model...")
     if not model_path:
-        raise ValueError("embedding.encoder_model_path is not set in settings.json")
-    model = SentenceTransformer(model_path)
+        print(
+            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
+        )
+        model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    else:
+        model = SentenceTransformer(model_path)
 
     print(f"Loading call graph from {CALL_GRAPH_PATH} ...")
     with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:

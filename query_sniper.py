@@ -62,8 +62,12 @@ def main(project_folder):
     # --- Model and Data Loading ---
     print("🚀 Loading models and data...")
     if not model_path:
-        raise ValueError("embedding.encoder_model_path is not set in settings.json")
-    model = SentenceTransformer(model_path)
+        print(
+            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
+        )
+        model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    else:
+        model = SentenceTransformer(model_path)
     llm_model = get_llm_model()
     index = faiss.read_index(str(INDEX_PATH))
     with open(METADATA_PATH, "r", encoding="utf-8") as f:
