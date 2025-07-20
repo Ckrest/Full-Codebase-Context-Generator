@@ -25,14 +25,16 @@ pytest -q
 
 ### Settings Options
 
-- **llm_model**: The sentence transformer model to use (default: "BAAI/bge-small-en")
-- **output_dir**: Directory where extracted data is stored (default: "extracted")
-- **embedding_dim**: Embedding dimension for the model (default: 384)
-- **top_k_results**: Number of top results to return in queries (default: 20)
-- **chunk_size**: Text chunk size for processing (default: 1000)
-- **allowed_extensions**: File extensions to include in processing
-- **exclude_dirs**: Directories to exclude from processing
-- **local_model_path**: Optional path to a local embedding model
+Settings are grouped into categories for easier navigation:
+
+- **model** – `llm_model`, `local_model_path`
+- **paths** – `output_dir`
+- **embedding** – `embedding_dim`
+- **query** – `top_k_results`
+- **context** – `chunk_size`, `context_hops`, `max_neighbors`
+- **extraction** – `allowed_extensions`, `exclude_dirs`, `comment_lookback_lines`,
+  `token_estimate_ratio`, and `minified_js_detection` options
+- **visualization** – parameters controlling call graph rendering
 
 ### Files
 

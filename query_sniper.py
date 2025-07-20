@@ -10,13 +10,13 @@ from Start import SETTINGS
 
 def main(project_folder):
     """Interactive search of the generated embeddings."""
-    MODEL_NAME = SETTINGS["llm_model"]
-    BASE_DIR = Path(SETTINGS["output_dir"]) / project_folder
+    MODEL_NAME = SETTINGS["model"]["llm_model"]
+    BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     METADATA_PATH = BASE_DIR / "embedding_metadata.json"
     INDEX_PATH = BASE_DIR / "faiss.index"
     CALL_GRAPH_PATH = BASE_DIR / "call_graph.json"
 
-    TOP_K = SETTINGS["top_k_results"]
+    TOP_K = SETTINGS["query"]["top_k_results"]
 
     print("🔧 Running... Model, context, and settings info:")
     print(f"Model: {MODEL_NAME}")
@@ -25,7 +25,7 @@ def main(project_folder):
     print(f"Top-K results: {TOP_K}\n")
 
     print("🔄 Loading model and index...")
-    model_path = SETTINGS.get("local_model_path") or MODEL_NAME
+    model_path = SETTINGS.get("model", {}).get("local_model_path") or MODEL_NAME
     model = SentenceTransformer(model_path)
     index = faiss.read_index(str(INDEX_PATH))
     with open(METADATA_PATH, "r", encoding="utf-8") as f:
@@ -55,8 +55,8 @@ def main(project_folder):
             nb_ids = expand_neighborhood(
                 graph,
                 meta["id"],
-                depth=SETTINGS.get("context_hops", 1),
-                limit=SETTINGS.get("max_neighbors", 5),
+                depth=SETTINGS["context"].get("context_hops", 1),
+                limit=SETTINGS["context"].get("max_neighbors", 5),
             )
             print("Neighbors:")
             for nid in nb_ids:

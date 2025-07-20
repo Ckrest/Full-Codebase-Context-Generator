@@ -7,13 +7,13 @@ from context_utils import gather_context
 
 from Start import SETTINGS
 def main(project_folder):
-    CALL_GRAPH_PATH = Path(SETTINGS["output_dir"]) / project_folder / "call_graph.json"
-    OUTPUT_DIR = Path(SETTINGS["output_dir"]) / project_folder
-    EMBEDDING_DIM = SETTINGS["embedding_dim"]
-    MODEL_NAME = SETTINGS["llm_model"]
+    CALL_GRAPH_PATH = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
+    OUTPUT_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
+    EMBEDDING_DIM = SETTINGS["embedding"]["embedding_dim"]
+    MODEL_NAME = SETTINGS["model"]["llm_model"]
 
     print("Loading embedding model...")
-    model_path = SETTINGS.get("local_model_path") or MODEL_NAME
+    model_path = SETTINGS.get("model", {}).get("local_model_path") or MODEL_NAME
     model = SentenceTransformer(model_path)
 
     print(f"Loading call graph from {CALL_GRAPH_PATH} ...")
@@ -24,8 +24,8 @@ def main(project_folder):
     texts = []
     metadata = []
 
-    depth = SETTINGS.get("context_hops", 1)
-    limit = SETTINGS.get("max_neighbors", 5)
+    depth = SETTINGS["context"].get("context_hops", 1)
+    limit = SETTINGS["context"].get("max_neighbors", 5)
 
     print("Encoding function nodes...")
     for node in nodes:

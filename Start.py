@@ -10,38 +10,61 @@ logger = logging.getLogger(__name__)
 
 # Default configuration used by all tools
 DEFAULT_SETTINGS = {
-    "llm_model": "BAAI/bge-small-en",  # example local model
-    "local_model_path": "",
-    "output_dir": "extracted",
-    "embedding_dim": 384,
-    "top_k_results": 20,
-    "chunk_size": 1000,
-    "context_hops": 1,
-    "max_neighbors": 5,
-    "allowed_extensions": [
-        ".py",
-        ".js",
-        ".ts",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".md",
-        ".txt",
-        ".html",
-        ".htm",
-    ],
-    "exclude_dirs": [
-        "__pycache__",
-        ".git",
-        "node_modules",
-        ".venv",
-        "venv",
-        "dist",
-        "build",
-        ".idea",
-        ".vscode",
-        ".pytest_cache",
-    ],
+    "model": {
+        "llm_model": "BAAI/bge-small-en",  # example local model
+        "local_model_path": "",
+    },
+    "paths": {
+        "output_dir": "extracted",
+    },
+    "embedding": {"embedding_dim": 384},
+    "query": {"top_k_results": 20},
+    "context": {
+        "chunk_size": 1000,
+        "context_hops": 1,
+        "max_neighbors": 5,
+    },
+    "extraction": {
+        "allowed_extensions": [
+            ".py",
+            ".js",
+            ".ts",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".md",
+            ".txt",
+            ".html",
+            ".htm",
+        ],
+        "exclude_dirs": [
+            "__pycache__",
+            ".git",
+            "node_modules",
+            ".venv",
+            "venv",
+            "dist",
+            "build",
+            ".idea",
+            ".vscode",
+            ".pytest_cache",
+        ],
+        "comment_lookback_lines": 3,
+        "token_estimate_ratio": 0.75,
+        "minified_js_detection": {
+            "max_lines_to_check": 50,
+            "single_line_threshold": 2000,
+            "required_long_lines": 2,
+        },
+    },
+    "visualization": {
+        "figsize": [12, 10],
+        "spring_layout_k": 0.5,
+        "spring_layout_iterations": 20,
+        "node_size": 1500,
+        "font_size": 8,
+        "node_color": "skyblue",
+    },
 }
 
 
@@ -91,11 +114,18 @@ def load_settings():
     else:
         logger.info("settings.json not found. Creating one with default settings.")
 
-    updated = False
-    for key, value in DEFAULT_SETTINGS.items():
-        if key not in settings:
-            settings[key] = value
-            updated = True
+    def ensure_keys(defaults, target):
+        changed = False
+        for k, v in defaults.items():
+            if k not in target:
+                target[k] = v
+                changed = True
+            elif isinstance(v, dict) and isinstance(target[k], dict):
+                if ensure_keys(v, target[k]):
+                    changed = True
+        return changed
+
+    updated = ensure_keys(DEFAULT_SETTINGS, settings)
 
     if updated or not os.path.exists(settings_path):
         try:
@@ -104,9 +134,16 @@ def load_settings():
         except IOError as e:
             logger.warning(f"Failed to write settings.json: {e}")
 
-    merged = DEFAULT_SETTINGS.copy()
-    merged.update(settings)
-    return merged
+    def deep_merge(defaults, overrides):
+        result = defaults.copy()
+        for k, v in overrides.items():
+            if k in result and isinstance(result[k], dict) and isinstance(v, dict):
+                result[k] = deep_merge(result[k], v)
+            else:
+                result[k] = v
+        return result
+
+    return deep_merge(DEFAULT_SETTINGS, settings)
 
 
 SETTINGS = load_settings()
@@ -125,10 +162,10 @@ def run_extract(project_path: Path, project_name: str):
 
     entries = []
     for root, dirs, files in os.walk(project_path):
-        dirs[:] = [d for d in dirs if d not in SETTINGS["exclude_dirs"]]
+        dirs[:] = [d for d in dirs if d not in SETTINGS["extraction"]["exclude_dirs"]]
         for fname in files:
             ext = Path(fname).suffix.lower()
-            if ext not in SETTINGS["allowed_extensions"]:
+            if ext not in SETTINGS["extraction"]["allowed_extensions"]:
                 continue
             fpath = Path(root) / fname
             if ext == ".py":
@@ -141,7 +178,7 @@ def run_extract(project_path: Path, project_name: str):
                 entries.extend(extract_from_markdown(str(fpath)))
 
     graph = build_call_graph(entries)
-    out_dir = Path(SETTINGS["output_dir"]) / project_name
+    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     out_dir.mkdir(parents=True, exist_ok=True)
     graph_path = out_dir / "call_graph.json"
     save_graph_json(graph, graph_path)
@@ -179,7 +216,7 @@ def main():
     project_name = project_path.name
     SETTINGS["default_project"] = project_name
 
-    out_dir = Path(SETTINGS["output_dir"]) / project_name
+    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     call_graph_path = out_dir / "call_graph.json"
     embeddings_path = out_dir / "embeddings.npy"
     index_path = out_dir / "faiss.index"
