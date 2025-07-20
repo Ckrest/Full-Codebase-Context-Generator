@@ -127,3 +127,46 @@ def bar():
     bar_id = f"{f}::bar"
     foo_id = f"{f}::foo"
     assert graph[bar_id][foo_id]["weight"] == 2
+
+
+def test_extract_from_json(tmp_path):
+    data = {"a": 1, "b": {"c": 2}}
+    f = tmp_path / "config.json"
+    f.write_text(json.dumps(data))
+    results = lec.extract_from_json(str(f))
+    assert results
+    entry = results[0]
+    assert entry["language"] == "json"
+    assert "a" in entry["code"]
+
+
+def test_extract_from_yaml(tmp_path):
+    text = "a: 1\nb:\n  c: 2\n"
+    f = tmp_path / "config.yaml"
+    f.write_text(text)
+    results = lec.extract_from_yaml(str(f))
+    assert results
+    entry = results[0]
+    assert entry["language"] == "yaml"
+    assert '"a"' in entry["code"]
+
+
+def test_extract_from_txt(tmp_path):
+    content = "hello world"
+    f = tmp_path / "notes.txt"
+    f.write_text(content)
+    results = lec.extract_from_txt(str(f))
+    assert results == [
+        {
+            "file_path": str(f),
+            "language": "text",
+            "type": "raw_text",
+            "name": None,
+            "code": content,
+            "comments": [],
+            "called_functions": [],
+            "hash": lec.hash_content(content),
+            "estimated_tokens": lec.estimate_tokens(content),
+        }
+    ]
+
