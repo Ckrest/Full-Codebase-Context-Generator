@@ -9,12 +9,15 @@ def load_graph(path: Path) -> dict:
 
 
 def build_neighbor_map(graph: dict, bidirectional: bool = True) -> dict:
-    """Return adjacency map from a call graph dictionary."""
-    neighbors = {n['id']: set() for n in graph.get('nodes', [])}
+    """Return adjacency map with weights from a call graph dictionary."""
+    neighbors: dict[str, list[tuple[str, float, str]]] = {
+        n['id']: [] for n in graph.get('nodes', [])
+    }
     for edge in graph.get('edges', []):
-        neighbors.setdefault(edge['from'], set()).add(edge['to'])
+        w = float(edge.get('weight', 1))
+        neighbors.setdefault(edge['from'], []).append((edge['to'], w, 'out'))
         if bidirectional:
-            neighbors.setdefault(edge['to'], set()).add(edge['from'])
+            neighbors.setdefault(edge['to'], []).append((edge['from'], w, 'in'))
     return neighbors
 
 
@@ -24,6 +27,8 @@ def expand_graph(
     depth: int = 1,
     limit: int | None = None,
     bidirectional: bool = True,
+    outbound_weight: float = 1.0,
+    inbound_weight: float = 1.0,
 ) -> list[str]:
     """Breadth-first expansion of a node's neighbors."""
     neighbor_map = build_neighbor_map(graph, bidirectional=bidirectional)
@@ -34,7 +39,11 @@ def expand_graph(
         current, d = queue.popleft()
         if d >= depth:
             continue
-        for nb in neighbor_map.get(current, []):
+        neighbors = neighbor_map.get(current, [])
+        neighbors.sort(
+            key=lambda x: -(x[1] * (outbound_weight if x[2] == 'out' else inbound_weight))
+        )
+        for nb, w, direction in neighbors:
             if nb not in visited:
                 visited.add(nb)
                 result.append(nb)
@@ -48,7 +57,13 @@ def expand_neighborhood(
     graph: dict, node_id: str, depth: int = 1, limit: int | None = None
 ) -> list[str]:
     """Backward compatible wrapper for expand_graph."""
-    return expand_graph(graph, node_id, depth=depth, limit=limit, bidirectional=True)
+    return expand_graph(
+        graph,
+        node_id,
+        depth=depth,
+        limit=limit,
+        bidirectional=True,
+    )
 
 
 def gather_context(
@@ -57,13 +72,21 @@ def gather_context(
     depth: int = 1,
     limit: int | None = None,
     bidirectional: bool = True,
+    outbound_weight: float = 1.0,
+    inbound_weight: float = 1.0,
 ) -> str:
     """Collect code from a node and its neighbors."""
     node_map = {n['id']: n for n in graph.get('nodes', [])}
     base = node_map.get(node_id, {})
     texts = [base.get('code', '')]
     for nb_id in expand_graph(
-        graph, node_id, depth=depth, limit=limit, bidirectional=bidirectional
+        graph,
+        node_id,
+        depth=depth,
+        limit=limit,
+        bidirectional=bidirectional,
+        outbound_weight=outbound_weight,
+        inbound_weight=inbound_weight,
     ):
         nb = node_map.get(nb_id)
         if nb:

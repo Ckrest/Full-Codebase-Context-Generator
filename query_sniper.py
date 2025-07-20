@@ -58,6 +58,8 @@ def main(project_folder):
                 depth=SETTINGS["context"].get("context_hops", 1),
                 limit=SETTINGS["context"].get("max_neighbors", 5),
                 bidirectional=SETTINGS["context"].get("bidirectional", True),
+                outbound_weight=SETTINGS["context"].get("outbound_weight", 1.0),
+                inbound_weight=SETTINGS["context"].get("inbound_weight", 1.0),
             )
             print("Neighbors:")
             for nid in nb_ids:

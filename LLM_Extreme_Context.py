@@ -75,6 +75,18 @@ def extract_from_python(filepath: str) -> List[Dict]:
     except SyntaxError:
         logger.warning(f"Failed to parse {filepath}")
         return results
+    import_map: Dict[str, str] = {}
+    for n in tree.body:
+        if isinstance(n, ast.Import):
+            for alias in n.names:
+                import_map[alias.asname or alias.name] = alias.name
+        elif isinstance(n, ast.ImportFrom):
+            mod = n.module or ""
+            for alias in n.names:
+                if alias.name == "*":
+                    continue
+                import_map[alias.asname or alias.name] = f"{mod}.{alias.name}" if mod else alias.name
+
     for node in ast.walk(tree):
         if isinstance(node, ast.FunctionDef):
             start = node.lineno - 1
@@ -85,7 +97,19 @@ def extract_from_python(filepath: str) -> List[Dict]:
                 for i in range(max(0, start - COMMENT_LOOKBACK), start)
                 if lines[i].strip().startswith("#")
             ]
-            calls = [n.func.id for n in ast.walk(node) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)]
+            calls: List[str] = []
+            for n in ast.walk(node):
+                if not isinstance(n, ast.Call):
+                    continue
+                func = n.func
+                if isinstance(func, ast.Name):
+                    calls.append(func.id)
+                elif isinstance(func, ast.Attribute):
+                    base = func.value
+                    if isinstance(base, ast.Name) and base.id not in {"self", "cls"}:
+                        calls.append(f"{base.id}.{func.attr}")
+                    else:
+                        calls.append(func.attr)
             results.append({
                 "file_path": filepath,
                 "language": "python",
@@ -94,6 +118,7 @@ def extract_from_python(filepath: str) -> List[Dict]:
                 "code": code,
                 "comments": comments,
                 "called_functions": calls,
+                "imports": import_map,
                 "hash": hash_content(code),
                 "estimated_tokens": estimate_tokens(code)
             })
@@ -339,20 +364,53 @@ def save_to_jsonl(data: List[Dict], outfile: Path):
 # === Call graph utilities ===
 def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
     G = nx.DiGraph()
-    name_to_ids: Dict[str, List[str]] = {}
+    name_to_ids_global: Dict[str, List[str]] = {}
+    name_to_ids_by_file: Dict[str, Dict[str, str]] = {}
+    module_to_file: Dict[str, str] = {}
+
     for entry in entries:
         if entry.get("type") != "function":
             continue
         func_id = f"{entry['file_path']}::{entry['name']}"
         G.add_node(func_id, **entry)
-        name_to_ids.setdefault(entry["name"], []).append(func_id)
+        name_to_ids_global.setdefault(entry["name"], []).append(func_id)
+        name_to_ids_by_file.setdefault(entry["file_path"], {})[entry["name"]] = func_id
+        module_to_file[Path(entry["file_path"]).stem] = entry["file_path"]
+
     for entry in entries:
         if entry.get("type") != "function":
             continue
         caller_id = f"{entry['file_path']}::{entry['name']}"
+        imports = entry.get("imports", {})
+        callee_counts: Dict[str, int] = {}
         for callee in entry.get("called_functions", []):
-            for cid in name_to_ids.get(callee, []):
-                G.add_edge(caller_id, cid)
+            target_file = entry["file_path"]
+            func_name = callee
+            if "." in callee:
+                base, func_name = callee.split(".", 1)
+                imported = imports.get(base)
+                if imported:
+                    mod = imported.split(".")[0]
+                    target_file = module_to_file.get(mod, target_file)
+                else:
+                    target_file = module_to_file.get(base, target_file)
+
+            cid = name_to_ids_by_file.get(target_file, {}).get(func_name)
+            if not cid:
+                # fallback to any file containing function name
+                ids = name_to_ids_global.get(func_name, [])
+            else:
+                ids = [cid]
+
+            for id_ in ids:
+                callee_counts[id_] = callee_counts.get(id_, 0) + 1
+
+        for cid, count in callee_counts.items():
+            if G.has_edge(caller_id, cid):
+                G[caller_id][cid]["weight"] += count
+            else:
+                G.add_edge(caller_id, cid, weight=count)
+
     return G
 
 
@@ -362,8 +420,8 @@ def save_graph_json(graph: nx.DiGraph, path: Path):
         calls = [t for _, t in graph.out_edges(node)]
         called_by = [s for s, _ in graph.in_edges(node)]
         data["nodes"].append({"id": node, **graph.nodes[node], "calls": calls, "called_by": called_by})
-    for u, v in graph.edges:
-        data["edges"].append({"from": u, "to": v})
+    for u, v, d in graph.edges(data=True):
+        data["edges"].append({"from": u, "to": v, "weight": d.get("weight", 1)})
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
