@@ -4,8 +4,10 @@
 
 This project uses a `settings.json` file for configuration.
 If the file does not exist it will be created automatically with default values.
-You can also copy `settings.example.json` to `settings.json` and modify it as needed.
-The extractors handle Python, HTML, Markdown, and JavaScript source files using tree-sitter for the latter.
+The `settings.example.json` file is kept in sync with the defaults in `Start.py`
+whenever the tools run, so copying that file is an easy way to start customising
+your own settings. The extractors handle Python, HTML, Markdown, and JavaScript
+source files using tree-sitter for the latter.
 
 ### Installation
 
