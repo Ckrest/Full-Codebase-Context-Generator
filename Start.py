@@ -22,8 +22,7 @@ DEFAULT_SETTINGS = {
     "query": {
         "top_k_results": 20,
         "use_spellcheck": False,
-        "rephrase_count": 1,
-        "rephrase_model_path": "",
+        "sub_question_count": 0,
     },
     "context": {
         "context_hops": 1,

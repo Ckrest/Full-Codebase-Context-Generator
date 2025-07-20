@@ -11,8 +11,7 @@ from query_sniper import build_symspell, correct_query, average_embeddings
 def test_default_query_settings():
     q = DEFAULT_SETTINGS["query"]
     assert q["use_spellcheck"] is False
-    assert q["rephrase_count"] == 1
-    assert q["rephrase_model_path"] == ""
+    assert q["sub_question_count"] == 0
 
 
 def test_spellcheck_basic():
