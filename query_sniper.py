@@ -3,7 +3,7 @@ from pathlib import Path
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from context_utils import expand_neighborhood
+from context_utils import expand_graph
 
 from Start import SETTINGS
 
@@ -52,11 +52,12 @@ def main(project_folder):
                 print("Usage: neighbors <result_number>")
                 continue
             meta = metadata[idx]
-            nb_ids = expand_neighborhood(
+            nb_ids = expand_graph(
                 graph,
                 meta["id"],
                 depth=SETTINGS["context"].get("context_hops", 1),
                 limit=SETTINGS["context"].get("max_neighbors", 5),
+                bidirectional=SETTINGS["context"].get("bidirectional", True),
             )
             print("Neighbors:")
             for nid in nb_ids:

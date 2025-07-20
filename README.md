@@ -31,10 +31,13 @@ Settings are grouped into categories for easier navigation:
 - **paths** – `output_dir`
 - **embedding** – `embedding_dim`
 - **query** – `top_k_results`
-- **context** – `chunk_size`, `context_hops`, `max_neighbors`
+- **context** – `chunk_size`, `context_hops`, `max_neighbors`, `bidirectional`
 - **extraction** – `allowed_extensions`, `exclude_dirs`, `comment_lookback_lines`,
   `token_estimate_ratio`, and `minified_js_detection` options
 - **visualization** – parameters controlling call graph rendering
+
+When `bidirectional` is `True`, context expansion walks both callers and
+callees. Set it to `False` to only follow outgoing calls.
 
 ### Files
 
