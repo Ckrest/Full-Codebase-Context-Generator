@@ -2,10 +2,16 @@ from pathlib import Path
 import json
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
+from typing import List
+
+from config import SETTINGS
+from llm import get_llm_model
+from query import generate_prompt_suggestions, generate_new_prompt
 
 HISTORY_DIR = Path.home() / ".full_context_history"
 HISTORY_DIR.mkdir(exist_ok=True)
 _SESSIONS: dict[str, PromptSession] = {}
+_PROMPT_SUGGESTIONS: List[str] = []
 
 
 def _get_session(key: str) -> PromptSession:
@@ -27,6 +33,10 @@ def ask_with_history(prompt: str, key: str) -> str:
         return answer
 
 
+def get_prompt_suggestions() -> List[str]:
+    return _PROMPT_SUGGESTIONS
+
+
 def start_event(path: Path | None = None) -> tuple[Path, str, str]:
     while not path:
         p = ask_with_history("Enter path to project directory: ", "project_path")
@@ -36,9 +46,13 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
             path = None
 
     problem = ask_with_history("What problem are you trying to solve?\n> ", "problem")
-    prompt = ask_with_history(
-        "What prompt should be used to find related functions?\n> ", "prompt"
-    )
+
+    llm_model = get_llm_model()
+    count = int(SETTINGS.get("query", {}).get("prompt_suggestion_count", 0))
+    if count > 0:
+        _PROMPT_SUGGESTIONS[:] = generate_prompt_suggestions(problem, count, llm_model)
+
+    prompt = ask_search_prompt(_PROMPT_SUGGESTIONS, problem, llm_model)
     return path, problem, prompt
 
 
@@ -58,11 +72,35 @@ def ask_project_folder() -> str:
     ).strip()
 
 
-def ask_search_prompt() -> str:
-    return ask_with_history(
-        "What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ",
-        "prompt",
-    )
+def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
+    while True:
+        print("\nAvailable query prompts:")
+        print("1) Generate a new prompt suggestion")
+        print("2) Use problem statement")
+        for i, q in enumerate(suggestions, start=3):
+            print(f"{i}) {q}")
+
+        ans = ask_with_history(
+            "What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ",
+            "prompt",
+        )
+        if ans.isdigit():
+            choice = int(ans)
+            if choice == 1:
+                new_q = generate_new_prompt(problem, suggestions, llm_model)
+                if new_q:
+                    print(f"Generated prompt: {new_q}")
+                    suggestions.append(new_q)
+                    return new_q
+                print("LLM not available to generate a query.")
+                continue
+            if choice == 2:
+                return problem
+            if 3 <= choice < 3 + len(suggestions):
+                return suggestions[choice - 3]
+            print("Invalid selection.")
+            continue
+        return ans
 
 
 def change_settings_event() -> None:
