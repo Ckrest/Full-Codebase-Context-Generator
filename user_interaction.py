@@ -3,78 +3,33 @@
 from __future__ import annotations
 
 import json
-import atexit
 from pathlib import Path
 
-try:
-    import readline  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    readline = None
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
 
-HISTORY_FILE = Path.home() / ".full_context_history.json"
-READLINE_HISTORY_FILE = Path.home() / ".full_context_readline"
-_INPUT_HISTORY: dict[str, list[str]] = {}
+HISTORY_DIR = Path.home() / ".full_context_history"
+HISTORY_DIR.mkdir(exist_ok=True)
+_SESSIONS: dict[str, PromptSession] = {}
 
 
-def _load_history() -> None:
-    """Load input history from ``HISTORY_FILE``."""
-    global _INPUT_HISTORY
-    if _INPUT_HISTORY:
-        return
-    if HISTORY_FILE.exists():
-        try:
-            _INPUT_HISTORY = json.loads(HISTORY_FILE.read_text())
-        except Exception:
-            _INPUT_HISTORY = {}
-    if readline:
-        try:
-            if READLINE_HISTORY_FILE.exists():
-                readline.read_history_file(str(READLINE_HISTORY_FILE))
-        except Exception:
-            pass
-        atexit.register(lambda: _save_readline())
-
-
-def _save_history() -> None:
-    try:
-        HISTORY_FILE.write_text(json.dumps(_INPUT_HISTORY, indent=2))
-    except Exception:
-        pass
-    _save_readline()
-
-
-def _save_readline() -> None:
-    if not readline:
-        return
-    try:
-        readline.clear_history()
-        for lst in _INPUT_HISTORY.values():
-            for item in lst:
-                readline.add_history(item)
-        readline.write_history_file(str(READLINE_HISTORY_FILE))
-    except Exception:
-        pass
+def _get_session(key: str) -> PromptSession:
+    session = _SESSIONS.get(key)
+    if session is None:
+        hist_file = HISTORY_DIR / f"{key}.txt"
+        session = PromptSession(history=FileHistory(str(hist_file)))
+        _SESSIONS[key] = session
+    return session
 
 
 def ask_with_history(prompt: str, key: str) -> str:
     """Prompt the user with ``prompt`` using history keyed by ``key``."""
-    _load_history()
+    session = _get_session(key)
     while True:
-        if readline:
-            readline.clear_history()
-            for item in _INPUT_HISTORY.get(key, []):
-                readline.add_history(item)
-        answer = input(prompt)
+        answer = session.prompt(prompt)
         if answer.lower() == "settings":
             change_settings_event()
             continue
-        if answer:
-            lst = _INPUT_HISTORY.setdefault(key, [])
-            if answer not in lst:
-                lst.append(answer)
-                if len(lst) > 20:
-                    lst.pop(0)
-            _save_history()
         return answer
 
 
