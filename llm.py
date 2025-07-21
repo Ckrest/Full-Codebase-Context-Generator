@@ -2,6 +2,48 @@ from google import genai
 from google.genai import types
 from sentence_transformers import SentenceTransformer
 from config import SETTINGS
+import json
+
+
+def get_example_json(n: int) -> str:
+    """Return comma separated example JSON values."""
+    return ",\n  ".join(f'"query suggestion {i+1}"' for i in range(n))
+
+
+PROMPT_GEN_TEMPLATE = """You are an expert in semantic code search.
+
+Given the user’s problem statement below, generate {n} recommended queries that are each:
+- Short (5-12 words)
+- Technically focused
+- Different in angle or phrasing
+- Useful for embedding-based code search
+
+Respond only with a JSON list of strings — no commentary, no markdown.
+
+# Problem Statement
+{problem}
+
+# Output Format
+[
+  {get_example_json}
+]"""
+
+
+PROMPT_NEW_QUERY = """You previously generated the following recommended queries for a problem. Now generate a single, new query that:
+- Is different in phrasing or focus
+- Still relevant to the original problem
+- Is useful for code search
+- Is short and specific
+
+Respond only with the query string.
+
+# Problem Statement
+{problem}
+
+# Existing Queries
+{existing}
+
+# New Query"""
 
 # Only Gemini is supported right now
 
@@ -66,12 +108,4 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
 
 
 
-def load_embedding_model(model_path: str | None):
-    """Load a ``SentenceTransformer`` model from ``model_path`` or download a default."""
-    if not model_path:
-        print(
-            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
-        )
-        return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-    return SentenceTransformer(model_path)
 

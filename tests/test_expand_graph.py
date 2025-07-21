@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-import context_utils as cu
+import graph as cu
 
 SIMPLE_GRAPH = {
     "nodes": [

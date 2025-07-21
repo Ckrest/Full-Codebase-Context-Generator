@@ -5,6 +5,7 @@ import hashlib
 import logging
 import yaml
 import re
+from collections import deque, Counter
 from pathlib import Path
 from typing import Dict, List
 
@@ -21,7 +22,6 @@ from config import SETTINGS
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# === Configuration ===
 ALLOWED_EXTENSIONS = set(SETTINGS["extraction"]["allowed_extensions"])
 EXCLUDE_DIRS = set(SETTINGS["extraction"]["exclude_dirs"])
 COMMENT_LOOKBACK = SETTINGS["extraction"].get("comment_lookback_lines", 3)
@@ -29,7 +29,6 @@ TOKEN_ESTIMATE_RATIO = SETTINGS["extraction"].get("token_estimate_ratio", 0.75)
 MINIFIED_JS = SETTINGS["extraction"].get("minified_js_detection", {})
 VIS_SETTINGS = SETTINGS.get("visualization", {})
 
-# === Utilities ===
 
 def hash_content(content: str) -> str:
     return hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -38,10 +37,10 @@ def hash_content(content: str) -> str:
 def estimate_tokens(content: str) -> int:
     return int(len(content.split()) * TOKEN_ESTIMATE_RATIO)
 
-# === Tree-sitter setup ===
+
 JS_PARSER: Parser = get_parser("javascript")
 
-# === Minified JS detection ===
+
 def looks_minified_js(
     filepath: str,
     max_lines_to_check: int = MINIFIED_JS.get("max_lines_to_check", 50),
@@ -60,7 +59,6 @@ def looks_minified_js(
         return False
     return False
 
-# === Extractors ===
 
 def extract_from_python(filepath: str) -> List[Dict]:
     results = []
@@ -345,7 +343,7 @@ def extract_from_txt(filepath: str) -> List[Dict]:
         "estimated_tokens": estimate_tokens(content)
     }]
 
-# === File routing & crawler ===
+
 EXTENSION_MAP = {
     ".py": extract_from_python,
     ".js": extract_from_javascript,
@@ -358,6 +356,7 @@ EXTENSION_MAP = {
     ".txt": extract_from_txt,
 }
 SKIPPED_LOG: List[Dict] = []
+
 
 def load_gitignore(root: str):
     gi = Path(root) / ".gitignore"
@@ -406,7 +405,7 @@ def save_to_jsonl(data: List[Dict], outfile: Path):
             f.write(json.dumps(item) + "\n")
     logger.info(f"Wrote {len(data)} entries to {outfile}")
 
-# === Call graph utilities ===
+
 def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
     G = nx.DiGraph()
     name_to_ids_global: Dict[str, List[str]] = {}
@@ -440,14 +439,12 @@ def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
                 else:
                     target_file = module_to_file.get(base, target_file)
 
-            # At this point both func_name and target_file are guaranteed to be non-empty strings
             file_funcs = name_to_ids_by_file.get(target_file)
             if file_funcs and func_name in file_funcs:
                 cid = file_funcs[func_name]
             else:
                 cid = None
             if not cid:
-                # fallback to any file containing function name
                 ids = name_to_ids_global.get(func_name, [])
             else:
                 ids = [cid]
@@ -495,23 +492,107 @@ def render_call_graph_image(graph: nx.DiGraph, path: Path):
     plt.savefig(str(path), format="PNG", bbox_inches="tight")
     plt.close()
 
-# === Main ===
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 2:
-        print("Usage: python LLM_Extreme_Context.py /path/to/codebase")
-        sys.exit(1)
-    root = sys.argv[1]
-    project = os.path.basename(os.path.abspath(root))
-    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project
-    out_dir.mkdir(parents=True, exist_ok=True)
 
-    entries = crawl_directory(root)
-    save_to_jsonl(entries, out_dir / "function_index.jsonl")
+# ===== Context Gathering =====
 
-    graph = build_call_graph(entries)
-    save_graph_json(graph, out_dir / "call_graph.json")
-    render_call_graph_image(graph, out_dir / "call_graph.png")
+def build_neighbor_map(graph: dict, bidirectional: bool = True) -> dict:
+    neighbors: dict[str, list[tuple[str, float, str]]] = {
+        n['id']: [] for n in graph.get('nodes', [])
+    }
+    for edge in graph.get('edges', []):
+        w = float(edge.get('weight', 1))
+        neighbors.setdefault(edge['from'], []).append((edge['to'], w, 'out'))
+        if bidirectional:
+            neighbors.setdefault(edge['to'], []).append((edge['from'], w, 'in'))
+    return neighbors
 
-    if SKIPPED_LOG:
-        save_to_jsonl(SKIPPED_LOG, out_dir / "skipped_files.jsonl")
+
+def expand_graph(
+    graph: dict,
+    node_id: str,
+    depth: int = 1,
+    limit: int | None = None,
+    bidirectional: bool = True,
+    outbound_weight: float = 1.0,
+    inbound_weight: float = 1.0,
+) -> list[str]:
+    neighbor_map = build_neighbor_map(graph, bidirectional=bidirectional)
+    visited = {node_id}
+    result = []
+    queue = deque([(node_id, 0)])
+    while queue:
+        current, d = queue.popleft()
+        if d >= depth:
+            continue
+        neighbors = neighbor_map.get(current, [])
+        neighbors.sort(
+            key=lambda x: -(x[1] * (outbound_weight if x[2] == 'out' else inbound_weight))
+        )
+        for nb, w, direction in neighbors:
+            if nb not in visited:
+                visited.add(nb)
+                result.append(nb)
+                if limit and len(result) >= limit:
+                    return result
+                queue.append((nb, d + 1))
+    return result
+
+
+def gather_context(
+    graph: dict,
+    node_id: str,
+    depth: int = 1,
+    limit: int | None = None,
+    bidirectional: bool = True,
+    outbound_weight: float = 1.0,
+    inbound_weight: float = 1.0,
+) -> str:
+    node_map = {n['id']: n for n in graph.get('nodes', [])}
+    base = node_map.get(node_id, {})
+    texts = [base.get('code', '')]
+    for nb_id in expand_graph(
+        graph,
+        node_id,
+        depth=depth,
+        limit=limit,
+        bidirectional=bidirectional,
+        outbound_weight=outbound_weight,
+        inbound_weight=inbound_weight,
+    ):
+        nb = node_map.get(nb_id)
+        if nb:
+            texts.append(nb.get('code', ''))
+    return '\n'.join(texts)
+
+
+# ===== Inspection =====
+
+def load_call_graph(path: Path) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def analyze_graph(data: dict) -> None:
+    nodes = data["nodes"]
+    edges = data["edges"]
+    total_nodes = len(nodes)
+    total_edges = len(edges)
+
+    file_counter = Counter()
+    name_counter = Counter()
+
+    for node in nodes:
+        path = node.get("file_path", "unknown")
+        name = node.get("name", "unnamed")
+        file_counter[path] += 1
+        name_counter[name] += 1
+
+    print(f"Nodes: {total_nodes}")
+    print(f"Edges: {total_edges}")
+    print("\nTop files by function count:")
+    for path, count in file_counter.most_common(10):
+        print(f"{count:5}  {path}")
+
+    print("\nMost common function names:")
+    for name, count in name_counter.most_common(10):
+        print(f"{count:5}  {name}")

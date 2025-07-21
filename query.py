@@ -4,57 +4,17 @@ import sys
 
 import faiss
 import numpy as np
-from llm_utils import get_llm_model, call_llm, load_embedding_model
+
+from llm import get_llm_model, call_llm, PROMPT_GEN_TEMPLATE, PROMPT_NEW_QUERY, get_example_json
+from embedding import load_embedding_model
 from spellcheck_utils import create_symspell_from_terms, correct_phrase
-
-def get_example_json(n):
-    return ",\n  ".join(f'"query suggestion {i+1}"' for i in range(n))
-
-PROMPT_GEN_TEMPLATE = """You are an expert in semantic code search.
-
-Given the user’s problem statement below, generate {n} recommended queries that are each:
-- Short (5-12 words)
-- Technically focused
-- Different in angle or phrasing
-- Useful for embedding-based code search
-
-Respond only with a JSON list of strings — no commentary, no markdown.
-
-# Problem Statement
-{problem}
-
-# Output Format
-[
-  {get_example_json}
-]
-"""
-
-
-PROMPT_NEW_QUERY = """You previously generated the following recommended queries for a problem. Now generate a single, new query that:
-- Is different in phrasing or focus
-- Still relevant to the original problem
-- Is useful for code search
-- Is short and specific
-
-Respond only with the query string.
-
-# Problem Statement
-{problem}
-
-# Existing Queries
-{existing}
-
-# New Query"""
-
-from context_utils import expand_graph
+from graph import expand_graph
 from summary_formatter import format_summary
 from prompt_builder import build_prompt
 from config import SETTINGS
 
 
-
 def average_embeddings(model, texts) -> np.ndarray:
-    """Encodes texts and returns the average of their embeddings."""
     vecs = model.encode(list(texts), normalize_embeddings=True)
     vecs = np.asarray(vecs, dtype=float)
     if vecs.ndim == 1:
@@ -62,8 +22,7 @@ def average_embeddings(model, texts) -> np.ndarray:
     return np.mean(vecs, axis=0, keepdims=True)
 
 
-def parse_json_list(text):
-    """Extract and parse a JSON list from ``text``."""
+def parse_json_list(text: str):
     try:
         start = text.index("[")
         end = text.rindex("]") + 1
@@ -72,51 +31,46 @@ def parse_json_list(text):
         return []
 
 
-def generate_prompt_suggestions(problem, count, llm_model):
+def generate_prompt_suggestions(problem: str, count: int, llm_model):
     if not llm_model or count <= 0:
         return []
     example_json = get_example_json(count)
-    prompt = PROMPT_GEN_TEMPLATE.format(problem=problem, n=count, example_json=example_json)
+    prompt = PROMPT_GEN_TEMPLATE.format(problem=problem, n=count, get_example_json=example_json)
     text = call_llm(llm_model, prompt)
     return parse_json_list(text)
 
 
-def generate_new_prompt(problem, existing, llm_model):
+def generate_new_prompt(problem: str, existing, llm_model):
     if not llm_model:
         return ""
     prompt = PROMPT_NEW_QUERY.format(problem=problem, existing=json.dumps(existing))
     return call_llm(llm_model, prompt).strip()
 
 
-def main(project_folder, problem=None, initial_query=None):
-    """Search the generated embeddings. If ``initial_query`` is provided, run
-    once and exit without prompting."""
-    # --- Configuration Loading ---
+def main(project_folder: str, problem: str | None = None, initial_query: str | None = None):
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
-    BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
-    METADATA_PATH = BASE_DIR / "embedding_metadata.json"
-    INDEX_PATH = BASE_DIR / "faiss.index"
-    CALL_GRAPH_PATH = BASE_DIR / "call_graph.json"
-    TOP_K = SETTINGS["query"]["top_k_results"]
+    base_dir = Path(SETTINGS["paths"]["output_dir"]) / project_folder
+    metadata_path = base_dir / "embedding_metadata.json"
+    index_path = base_dir / "faiss.index"
+    call_graph_path = base_dir / "call_graph.json"
+    top_k = SETTINGS["query"]["top_k_results"]
 
     print("🔧 Running... Model, context, and settings info:")
     print(f"Encoder model: {model_path}")
-    print(f"Context source: {CALL_GRAPH_PATH}")
-    print(f"Index file: {INDEX_PATH}")
-    print(f"Top-K results: {TOP_K}\n")
+    print(f"Context source: {call_graph_path}")
+    print(f"Index file: {index_path}")
+    print(f"Top-K results: {top_k}\n")
 
-    # --- Model and Data Loading ---
     print("🚀 Loading models and data...")
     model = load_embedding_model(model_path)
     llm_model = get_llm_model()
-    index = faiss.read_index(str(INDEX_PATH))
-    with open(METADATA_PATH, "r", encoding="utf-8") as f:
+    index = faiss.read_index(str(index_path))
+    with open(metadata_path, "r", encoding="utf-8") as f:
         metadata = json.load(f)
-    with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:
+    with open(call_graph_path, "r", encoding="utf-8") as f:
         graph = json.load(f)
     node_map = {n["id"]: n for n in graph.get("nodes", [])}
 
-    # --- Optional Tools Initialization ---
     symspell = None
     if SETTINGS["query"].get("use_spellcheck"):
         names = [item.get("name") for item in metadata if "name" in item]
@@ -124,10 +78,10 @@ def main(project_folder, problem=None, initial_query=None):
 
     sub_question_count = int(SETTINGS["query"].get("sub_question_count", 0))
     use_sub_questions = sub_question_count > 0
-    RESULTS_FILE = BASE_DIR / "results.txt"
+    results_file = base_dir / "results.txt"
 
     if problem is None:
-        from user_interaction import ask_problem
+        from interactive_cli import ask_problem
 
         problem = ask_problem()
 
@@ -190,7 +144,7 @@ def main(project_folder, problem=None, initial_query=None):
             print("Sub-question generation skipped because no LLM model was available.")
 
         if sub_queries or use_sub_questions:
-            with open(RESULTS_FILE, "a", encoding="utf-8") as f:
+            with open(results_file, "a", encoding="utf-8") as f:
                 f.write(f"Original query: {query}\n")
                 if sub_queries:
                     f.write("Sub-queries:\n")
@@ -201,7 +155,7 @@ def main(project_folder, problem=None, initial_query=None):
                 f.write("\n")
 
         query_vec = average_embeddings(model, queries)
-        distances, indices = index.search(np.asarray(query_vec, dtype=np.float32), TOP_K)
+        distances, indices = index.search(np.asarray(query_vec, dtype=np.float32), top_k)
         last = indices[0]
 
         print("\n🎯 Top Matches:")
@@ -209,12 +163,12 @@ def main(project_folder, problem=None, initial_query=None):
             indices[0],
             metadata,
             node_map,
-            save_path=str(BASE_DIR / "last_summary.txt"),
+            save_path=str(base_dir / "last_summary.txt"),
             base_dir=SETTINGS.get("project_root"),
         )
         print(summary)
         print()
-        with open(RESULTS_FILE, "a", encoding="utf-8") as f:
+        with open(results_file, "a", encoding="utf-8") as f:
             f.write("Functions returned:\n")
             for i in indices[0]:
                 meta = metadata[i]
@@ -224,12 +178,12 @@ def main(project_folder, problem=None, initial_query=None):
             f.write("\n")
 
         prompt_text = build_prompt(
-            METADATA_PATH,
-            CALL_GRAPH_PATH,
+            metadata_path,
+            call_graph_path,
             [int(i) for i in indices[0]],
             problem,
             base_dir=SETTINGS.get("project_root"),
-            save_path=str(BASE_DIR / "initial_prompt.txt"),
+            save_path=str(base_dir / "initial_prompt.txt"),
         )
         print("\nGenerated initial prompt:\n")
         print(prompt_text)
@@ -237,16 +191,15 @@ def main(project_folder, problem=None, initial_query=None):
 
         if llm_model:
             print("⏳ Querying Gemini...")
-            FINAL_CONTEXT = call_llm(llm_model, prompt_text)
-            print(FINAL_CONTEXT)
-            with open(RESULTS_FILE, "a", encoding="utf-8") as f:
+            final_context = call_llm(llm_model, prompt_text)
+            print(final_context)
+            with open(results_file, "a", encoding="utf-8") as f:
                 f.write("LLM Response:\n")
-                f.write(FINAL_CONTEXT + "\n\n")
+                f.write(final_context + "\n\n")
         else:
             print("Skipping LLM query as the model is not available.")
         return last
 
-    # --- Main Interactive Loop ---
     last = None
     if initial_query:
         run_search(initial_query, last)
@@ -259,7 +212,7 @@ def main(project_folder, problem=None, initial_query=None):
         for i, q in enumerate(suggestions, start=3):
             print(f"{i}) {q}")
 
-        from user_interaction import ask_search_prompt
+        from interactive_cli import ask_search_prompt
 
         user_in = ask_search_prompt()
         if user_in.strip().lower() in {"exit", "quit"}:
@@ -294,7 +247,7 @@ def main(project_folder, problem=None, initial_query=None):
 
 
 if __name__ == "__main__":
-    from user_interaction import ask_project_folder
+    from interactive_cli import ask_project_folder
 
     if len(sys.argv) > 1:
         main(sys.argv[1])
