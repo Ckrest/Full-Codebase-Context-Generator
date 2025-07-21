@@ -75,6 +75,7 @@ def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
 def main(project_folder: str, problem: str | None = None, initial_query: str | None = None):
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
     base_dir = Path(SETTINGS["paths"]["output_dir"]) / project_folder
+    print(f"📁 Using project: {base_dir}")
     metadata_path = base_dir / "embedding_metadata.json"
     index_path = base_dir / "faiss.index"
     call_graph_path = base_dir / "call_graph.json"
@@ -114,7 +115,12 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
     from interactive_cli import get_prompt_suggestions
     suggestions = get_prompt_suggestions()
     if not suggestions:
-        suggestions.extend(generate_prompt_suggestions(problem, suggestion_count, llm_model))
+        print("[⏳ Working...] Generating prompt suggestions")
+        try:
+            suggestions.extend(generate_prompt_suggestions(problem, suggestion_count, llm_model))
+            print("[✔ Done]")
+        except Exception:
+            print("[❌ Failed]")
 
     def run_search(query, last_indices=None):
         nonlocal last
@@ -149,8 +155,13 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         queries = [correct_phrase(symspell, query)]
         sub_queries = []
         if use_sub_questions and llm_model:
-            print("Generating sub-queries...")
-            sub_queries = generate_sub_questions(query, sub_question_count, llm_model)
+            print("[⏳ Working...] Generating sub-questions")
+            try:
+                sub_queries = generate_sub_questions(query, sub_question_count, llm_model)
+                print("[✔ Done]")
+            except Exception:
+                print("[❌ Failed]")
+                sub_queries = []
             if sub_queries:
                 queries.extend(correct_phrase(symspell, q) for q in sub_queries)
         elif use_sub_questions:
@@ -166,6 +177,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 else:
                     f.write("Sub-queries: none\n")
                 f.write("\n")
+            print(f"🗃 Output saved to: {results_file}")
 
         vecs = model.encode(queries, normalize_embeddings=True)
         if vecs.ndim == 1:
@@ -246,9 +258,11 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                             best_text = sq["text"]
 
             score_str = f"{best_score:.3f}" if best_score is not None else "n/a"
-            print(
-                f"- {name} (from {file_path}, rank #{rank}, similarity {score_str}) via '{best_text}'"
-            )
+            print("-" * 40)
+            print(f"{rank}. {name} ({file_path})")
+            print(f"Match Score: {score_str}")
+            if len(subquery_data) > 1:
+                print(f"Matched Query: {best_text}")
 
         summary = format_summary(
             final_indices,
@@ -268,26 +282,39 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 name = node.get("name", meta.get("name"))
                 f.write(f"- {name}\n")
             f.write("\n")
+        print(f"🗃 Output saved to: {results_file}")
 
-        prompt_text = build_prompt(
-            metadata_path,
-            call_graph_path,
-            [int(i) for i in final_indices],
-            problem,
-            base_dir=SETTINGS.get("project_root"),
-            save_path=str(base_dir / "initial_prompt.txt"),
-        )
+        print("[⏳ Working...] Generating final prompt")
+        try:
+            prompt_text = build_prompt(
+                metadata_path,
+                call_graph_path,
+                [int(i) for i in final_indices],
+                problem,
+                base_dir=SETTINGS.get("project_root"),
+                save_path=str(base_dir / "initial_prompt.txt"),
+            )
+            print("[✔ Done]")
+        except Exception:
+            print("[❌ Failed]")
+            prompt_text = ""
         print("\nGenerated initial prompt:\n")
         print(prompt_text)
         print()
 
         if llm_model:
-            print("⏳ Querying Gemini...")
-            final_context = call_llm(llm_model, prompt_text)
+            print("[⏳ Working...] Querying Gemini")
+            try:
+                final_context = call_llm(llm_model, prompt_text)
+                print("[✔ Done]")
+            except Exception:
+                final_context = "💥 Gemini query failed"
+                print("[❌ Failed]")
             print(final_context)
             with open(results_file, "a", encoding="utf-8") as f:
                 f.write("LLM Response:\n")
                 f.write(final_context + "\n\n")
+            print(f"🗃 Output saved to: {results_file}")
         else:
             print("Skipping LLM query as the model is not available.")
             final_context = ""

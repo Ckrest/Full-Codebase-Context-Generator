@@ -470,6 +470,7 @@ def save_graph_json(graph: nx.DiGraph, path: Path):
     for u, v, d in graph.edges(data=True):
         data["edges"].append({"from": u, "to": v, "weight": d.get("weight", 1)})
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    print(f"🗃 Output saved to: {path}")
 
 
 def render_call_graph_image(graph: nx.DiGraph, path: Path):

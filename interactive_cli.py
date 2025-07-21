@@ -49,19 +49,25 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
         path = Path(p.strip())
         if not path.exists():
             print(
-                "❌ That path doesn't exist or isn't accessible. Try again, or type 'settings' to update configuration."
+                "❌ That path doesn't exist. Try again or type 'settings' to update configuration."
             )
             path = None
 
     problem = ask_with_history(
-        "What’s the technical problem you're trying to solve? Be specific — e.g., 'Functions modifying global state unexpectedly'\n> ",
+        "What technical problem are you trying to solve? (e.g., 'Find all state mutations')\n> ",
         "problem",
     )
 
     llm_model = get_llm_model()
     count = int(SETTINGS.get("query", {}).get("prompt_suggestion_count", 0))
     if count > 0:
-        _PROMPT_SUGGESTIONS[:] = generate_prompt_suggestions(problem, count, llm_model)
+        print("[⏳ Working...] Generating prompt suggestions")
+        try:
+            _PROMPT_SUGGESTIONS[:] = generate_prompt_suggestions(problem, count, llm_model)
+            print("[✔ Done]")
+        except Exception:
+            print("[❌ Failed]")
+            _PROMPT_SUGGESTIONS[:] = []
 
     prompt = ask_search_prompt(_PROMPT_SUGGESTIONS, problem, llm_model)
     return path, problem, prompt
@@ -77,40 +83,45 @@ def after_generation_event() -> bool:
 
 def ask_problem() -> str:
     return ask_with_history(
-        "What’s the technical problem you're trying to solve? Be specific — e.g., 'Functions modifying global state unexpectedly'\n> ",
+        "What technical problem are you trying to solve? (e.g., 'Find all state mutations')\n> ",
         "problem",
     ).strip()
 
 
 def ask_project_folder() -> str:
     return ask_with_history(
-        "Enter the project folder to analyze (relative to output_dir): ",
+        "Enter path to your project folder (absolute or relative). Type 'settings' to configure, or press Enter to cancel:\n> ",
         "project_folder",
     ).strip()
 
 
 def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
     while True:
-        print("\n🎯 How do you want to search the codebase? Choose a prompt:")
-        print(" [1] Generate a new search prompt")
-        print(" [2] Use the full problem statement as-is")
-        print(" [3+] Use one of the suggested prompts below:\n")
+        print("\n🎯 How do you want to search the codebase? Choose an option:")
+        print("  [1] Generate a new search prompt")
+        print("  [2] Use your full problem statement")
+        print("  [3] Use one of the suggested prompts below:")
         for i, q in enumerate(suggestions, start=3):
-            print(f"  {i}) {q}")
+            print(f"    {i}) {q}")
 
         ans = ask_with_history(
-            "What prompt should be used to find related code? (type 'exit' to quit, or 'neighbors <n>' to explore related results)\n> ",
+            "Select an option or type 'exit' / 'neighbors <n>':",
             "prompt",
         )
         if ans.isdigit():
             choice = int(ans)
             if choice == 1:
-                new_q = generate_new_prompt(problem, suggestions, llm_model)
-                if new_q:
-                    print(f"Generated prompt: {new_q}")
-                    suggestions.append(new_q)
-                    return new_q
-                print("LLM not available to generate a query.")
+                print("[⏳ Working...] Generating new prompt")
+                try:
+                    new_q = generate_new_prompt(problem, suggestions, llm_model)
+                    if new_q:
+                        print("[✔ Done]")
+                        print(f"Generated prompt: {new_q}")
+                        suggestions.append(new_q)
+                        return new_q
+                    print("[❌ Failed]")
+                except Exception:
+                    print("[❌ Failed]")
                 continue
             if choice == 2:
                 return problem
@@ -128,7 +139,7 @@ def change_settings_event() -> None:
     settings = config.load_settings()
 
     while True:
-        print("\nCurrent settings:")
+        print("\n🔧 Current configuration loaded from settings.json:")
         print(json.dumps(settings, indent=2))
         field = input(
             "Enter the setting path you want to change (e.g., query.top_k_results), or press Enter to finish:"
@@ -157,6 +168,7 @@ def change_settings_event() -> None:
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
             f.write("\n")
+        print("✔ Settings saved to settings.json")
     except Exception as e:
         print(f"💥 Failed to write settings.json: {e}")
 
