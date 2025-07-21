@@ -152,7 +152,9 @@ def main(project_folder, problem=None, initial_query=None):
     RESULTS_FILE = BASE_DIR / "results.txt"
 
     if problem is None:
-        problem = input("What problem are you trying to solve?\n> ").strip()
+        from user_interaction import ask_problem
+
+        problem = ask_problem()
 
     suggestion_count = int(SETTINGS["query"].get("prompt_suggestion_count", 0))
     suggestions = generate_prompt_suggestions(problem, suggestion_count, llm_model)
@@ -282,7 +284,9 @@ def main(project_folder, problem=None, initial_query=None):
         for i, q in enumerate(suggestions, start=3):
             print(f"{i}) {q}")
 
-        user_in = input("What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ")
+        from user_interaction import ask_search_prompt
+
+        user_in = ask_search_prompt()
         if user_in.strip().lower() in {"exit", "quit"}:
             print("👋 Exiting.")
             break
@@ -315,9 +319,11 @@ def main(project_folder, problem=None, initial_query=None):
 
 
 if __name__ == "__main__":
+    from user_interaction import ask_project_folder
+
     if len(sys.argv) > 1:
         main(sys.argv[1])
     else:
-        folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
+        folder = ask_project_folder()
         if folder:
             main(folder)
