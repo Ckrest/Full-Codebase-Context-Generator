@@ -14,7 +14,29 @@ from config import SETTINGS
 from session_logger import (
     log_session_to_json,
     log_summary_to_markdown,
+    format_function_entry,
 )
+
+
+def aggregate_scores(function_index: dict) -> dict:
+    """Return aggregated relevance scores per function."""
+    aggregated = {}
+    for name, meta in function_index.items():
+        matches = [
+            m for m in meta.get("subqueries", [])
+            if all(k in m for k in ("score", "rank", "index"))
+        ]
+        if not matches:
+            continue
+        scores = [m["score"] for m in matches]
+        agg = {
+            "avg_score": float(np.mean(scores)),
+            "max_score": float(np.max(scores)),
+            "stddev_score": float(np.std(scores)) if len(scores) > 1 else 0.0,
+            "queries_matched": [m["text"] for m in matches],
+        }
+        aggregated[name] = agg
+    return aggregated
 
 
 def average_embeddings(model, texts) -> np.ndarray:
@@ -200,6 +222,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                     name,
                     {
                         "file": file_path,
+                        "id": meta.get("id"),
                         "subqueries": [],
                     },
                 )
@@ -292,6 +315,17 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             print("Skipping LLM query as the model is not available.")
             final_context = ""
 
+        relevance = aggregate_scores(function_index)
+
+        functions_list = []
+        for name, scores in relevance.items():
+            node_info = function_index.get(name)
+            node = node_map.get(node_info.get("id")) if node_info else None
+            if node:
+                functions_list.append(
+                    format_function_entry(node, scores, graph)
+                )
+
         max_log = SETTINGS.get("logging", {}).get("max_functions_to_log", 100)
         sorted_funcs = sorted(
             function_index.items(), key=lambda x: -x[1].get("value_score", 0.0)
@@ -320,19 +354,24 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         }
 
         log_data = {
-            "original_query": query,
-            "subqueries": subquery_data,
-            "functions": function_index,
-            "summary": summary_data,
-            "llm_response": final_context,
+            "query": query,
+            "subqueries": [sq["text"] for sq in subquery_data],
+            "functions": functions_list,
         }
+
+        if SETTINGS.get("logging", {}).get("log_markdown", True):
+            md_file = log_summary_to_markdown({
+                "original_query": query,
+                "subqueries": subquery_data,
+                "functions": function_index,
+                "summary": summary_data,
+                "llm_response": final_context,
+            }, "logs")
+            print(f"✔ Saved {md_file}")
 
         if SETTINGS.get("logging", {}).get("log_json", True):
             json_file = log_session_to_json(log_data, "logs")
             print(f"✔ Saved {json_file}")
-        if SETTINGS.get("logging", {}).get("log_markdown", True):
-            md_file = log_summary_to_markdown(log_data, "logs")
-            print(f"✔ Saved {md_file}")
 
         return last
 

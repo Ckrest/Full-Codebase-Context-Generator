@@ -85,42 +85,73 @@ def extract_from_python(filepath: str) -> List[Dict]:
                     continue
                 import_map[alias.asname or alias.name] = f"{mod}.{alias.name}" if mod else alias.name
 
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef):
+    class FuncVisitor(ast.NodeVisitor):
+        def __init__(self, lines: List[str]):
+            self.lines = lines
+            self.class_stack: list[str] = []
+            self.out: List[Dict] = []
+
+        def visit_ClassDef(self, node: ast.ClassDef):
+            self.class_stack.append(node.name)
+            self.generic_visit(node)
+            self.class_stack.pop()
+
+        def visit_FunctionDef(self, node: ast.FunctionDef):
             start = node.lineno - 1
-            end = node.body[-1].end_lineno if hasattr(node.body[-1], "end_lineno") else node.body[-1].lineno
-            code = "".join(lines[start:end])
+            end_node = node.body[-1]
+            end = getattr(end_node, "end_lineno", getattr(end_node, "lineno", start))
+            code = "".join(self.lines[start:end])
             comments = [
-                lines[i].strip()
+                self.lines[i].strip()
                 for i in range(max(0, start - COMMENT_LOOKBACK), start)
-                if lines[i].strip().startswith("#")
+                if self.lines[i].strip().startswith("#")
             ]
             calls: List[str] = []
             for n in ast.walk(node):
-                if not isinstance(n, ast.Call):
+                if isinstance(n, ast.Call):
+                    func = n.func
+                    if isinstance(func, ast.Name):
+                        calls.append(func.id)
+                    elif isinstance(func, ast.Attribute):
+                        base = func.value
+                        if isinstance(base, ast.Name) and base.id not in {"self", "cls"}:
+                            calls.append(f"{base.id}.{func.attr}")
+                        else:
+                            calls.append(func.attr)
+
+            params: Dict[str, str] = {}
+            for arg in node.args.args + node.args.kwonlyargs:
+                if arg.arg in {"self", "cls"}:
                     continue
-                func = n.func
-                if isinstance(func, ast.Name):
-                    calls.append(func.id)
-                elif isinstance(func, ast.Attribute):
-                    base = func.value
-                    if isinstance(base, ast.Name) and base.id not in {"self", "cls"}:
-                        calls.append(f"{base.id}.{func.attr}")
-                    else:
-                        calls.append(func.attr)
-            results.append({
+                ann = ast.unparse(arg.annotation).strip() if arg.annotation else ""
+                params[arg.arg] = ann
+            if node.args.vararg:
+                ann = ast.unparse(node.args.vararg.annotation).strip() if node.args.vararg.annotation else ""
+                params[f"*{node.args.vararg.arg}"] = ann
+            if node.args.kwarg:
+                ann = ast.unparse(node.args.kwarg.annotation).strip() if node.args.kwarg.annotation else ""
+                params[f"**{node.args.kwarg.arg}"] = ann
+
+            entry = {
                 "file_path": filepath,
                 "language": "python",
                 "type": "function",
                 "name": node.name,
+                "class": self.class_stack[-1] if self.class_stack else None,
                 "code": code,
                 "comments": comments,
+                "docstring": ast.get_docstring(node) or "",
+                "parameters": params,
                 "called_functions": calls,
                 "imports": import_map,
                 "hash": hash_content(code),
-                "estimated_tokens": estimate_tokens(code)
-            })
-    return results
+                "estimated_tokens": estimate_tokens(code),
+            }
+            self.out.append(entry)
+
+    visitor = FuncVisitor(lines)
+    visitor.visit(tree)
+    return visitor.out
 
 
 def extract_from_html(filepath: str) -> List[Dict]:
@@ -406,6 +437,27 @@ def save_to_jsonl(data: List[Dict], outfile: Path):
     logger.info(f"Wrote {len(data)} entries to {outfile}")
 
 
+def infer_call_graph_roles(G: nx.DiGraph) -> None:
+    """Annotate nodes in ``G`` with a call_graph_role."""
+    for node in G.nodes:
+        calls = list(G.successors(node))
+        called_by = list(G.predecessors(node))
+
+        if not called_by and calls:
+            role = "entrypoint"
+        elif called_by and calls:
+            role = "middleware"
+        elif called_by and not calls:
+            role = "leaf"
+        else:
+            role = "orphan"
+
+        if len(set(called_by)) >= 3 or Path(G.nodes[node].get("file_path", "")).name == "utils.py":
+            role = "utility"
+
+        G.nodes[node]["call_graph_role"] = role
+
+
 def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
     G = nx.DiGraph()
     name_to_ids_global: Dict[str, List[str]] = {}
@@ -457,6 +509,8 @@ def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
                 G[caller_id][cid]["weight"] += count
             else:
                 G.add_edge(caller_id, cid, weight=count)
+
+    infer_call_graph_roles(G)
 
     return G
 

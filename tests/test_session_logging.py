@@ -18,16 +18,16 @@ def test_logging_defaults_present():
 
 def test_session_logger_writes_files(tmp_path):
     data = {
-        "original_query": "Find foo",
+        "query": "Find foo",
         "subqueries": [
             {"text": "foo", "functions": []}
         ],
         "functions": {},
     }
     json_path = log_session_to_json(data, tmp_path)
-    md_path = log_summary_to_markdown(data, tmp_path)
+    md_path = log_summary_to_markdown({"original_query": "Find foo", "subqueries": [], "functions": {}}, tmp_path)
     assert Path(json_path).exists()
     assert Path(md_path).exists()
-    assert re.search(r"query_find_foo_", Path(json_path).name)
+    assert re.search(r"find_foo\.json$", Path(json_path).name)
     assert re.search(r"query_find_foo_", Path(md_path).name)
 
