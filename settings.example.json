@@ -73,5 +73,11 @@
   "embedding": {
     "embedding_dim": 384,
     "encoder_model_path": ""
+  },
+  "logging": {
+    "log_markdown": true,
+    "log_json": true,
+    "track_duplicates": true,
+    "max_functions_to_log": 100
   }
 }
