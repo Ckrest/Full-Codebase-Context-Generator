@@ -4,10 +4,10 @@
 
 This project uses a `settings.json` file for configuration.
 If the file does not exist it will be created automatically with default values.
-The `settings.example.json` file is kept in sync with the defaults in `Start.py`
-whenever the tools run, so copying that file is an easy way to start customising
-your own settings. The extractors handle Python, HTML, Markdown, and JavaScript
-source files using tree-sitter for the latter.
+The `settings.example.json` file is kept in sync with the defaults whenever the
+tools run, so copying that file is an easy way to start customizing your own
+settings. The extractors handle Python, HTML, Markdown, and JavaScript source
+files using tree-sitter for the latter.
 
 ### Installation
 
@@ -16,6 +16,13 @@ Install dependencies with:
 ```bash
 pip install -r requirements.txt
 ```
+
+## Workflow
+
+1. **extract** – parse source files and build a call graph
+2. **embed** – generate embeddings for each node
+3. **query** – interactively search the embeddings
+4. **inspect** – optional graph statistics and visualisation
 
 If `sub_question_count` is greater than 0, an LLM call breaks your question into
 that many sub-queries before searching the embeddings. This helps find relevant
@@ -54,7 +61,7 @@ callees. Set it to `False` to only follow outgoing calls.
 ### Files
 
  - `LLM_Extreme_Context.py`: Extracts Python, HTML, Markdown, and JavaScript using tree-sitter
-- `Start.py`: Entry point for running other utilities
+ - `Start.py`: Unified CLI with `extract`, `embed`, `query`, and `inspect` commands
 - `generate_embeddings.py`: Generate embeddings from call graph
 - `query_sniper.py`: Interactive query interface
 - `inspect_graph.py`: Graph analysis and visualization
@@ -64,8 +71,16 @@ callees. Set it to `False` to only follow outgoing calls.
 ## Usage
 
 The `settings.json` file is automatically loaded by all scripts. If the file doesn't exist, it will be generated with defaults the first time you run the tools.
-Run `python Start.py [path]` where `path` is the folder you want to analyse. If the artifacts for that project do not exist they will be created and you will then be dropped into the interactive query interface.
-While in the query interface you can type `neighbors <n>` to see the graph neighbors of result `n` from the previous search.
+Invoke the CLI with `python Start.py <command>`:
+
+```bash
+python Start.py extract /path/to/project
+python Start.py embed my_project
+python Start.py query my_project --problem "bug" --prompt "search term"
+python Start.py inspect my_project
+```
+
+Running `Start.py` with just a path enters an interactive loop. While querying you can type `neighbors <n>` to see the graph neighbors of result `n` from the previous search. Interactive prompts are stored in `.full_context_history.json`.
 
 ### Spellcheck and Sub-Queries
 

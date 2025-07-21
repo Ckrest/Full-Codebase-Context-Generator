@@ -2,24 +2,18 @@ import json
 import numpy as np
 import faiss
 from pathlib import Path
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 from context_utils import gather_context
 
-from Start import SETTINGS
+from config import SETTINGS
+from llm_utils import load_embedding_model
 def main(project_folder):
     CALL_GRAPH_PATH = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
     OUTPUT_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
 
     print("Loading embedding model...")
-    if not model_path:
-        print(
-            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
-        )
-        model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-    else:
-        model = SentenceTransformer(model_path)
+    model = load_embedding_model(model_path)
 
     EMBEDDING_DIM = model.get_sentence_embedding_dimension()
     print(f"Detected embedding dimension: {EMBEDDING_DIM}")

@@ -1,6 +1,6 @@
 from google import genai
-from google.genai import types
-from Start import SETTINGS
+from sentence_transformers import SentenceTransformer
+from config import SETTINGS
 
 # Only Gemini is supported right now
 
@@ -50,3 +50,14 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
         return response.text.strip()
     except Exception as e:
         return f"💥 Gemini query failed: {e}"
+
+
+def load_embedding_model(model_path: str | None):
+    """Load a ``SentenceTransformer`` model from ``model_path`` or download a default."""
+    if not model_path:
+        print(
+            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
+        )
+        return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    return SentenceTransformer(model_path)
+

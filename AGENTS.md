@@ -13,7 +13,7 @@ those embeddings. The main scripts are located in the repository root.
 | `generate_embeddings.py` | Generates embeddings for call graph nodes using `sentence-transformers` and FAISS. |
 | `query_sniper.py` | Interactive CLI to search embeddings and explore neighboring nodes. |
 | `inspect_graph.py` | Basic analysis/visualization of the generated call graph. |
-| `Start.py` | Entry point providing `generate`, `query`, and `inspect` commands. |
+| `Start.py` | Unified CLI providing `extract`, `embed`, `query`, and `inspect` commands. |
 
 ## Function Relationships
 
@@ -36,6 +36,18 @@ those embeddings. The main scripts are located in the repository root.
 
 The `Start.py` module orchestrates these utilities via command line.
 
+### Usage Notes
+
+Run `python Start.py <command>` where `<command>` is one of:
+
+- `extract` – build a call graph for a project
+- `embed` – generate embeddings from a call graph
+- `query` – search the embeddings interactively
+- `inspect` – print basic graph statistics
+
+Running `Start.py` with just a path starts the interactive workflow. Command
+history is stored in `.full_context_history.json`.
+
 ### Debugging
 
 Scripts print detailed progress information when run with `PYTHONLOGLEVEL=DEBUG`.
@@ -51,3 +63,4 @@ pytest -q
 ```
 
 The main test file is `tests/test_extractors.py` which verifies the extractors and call graph generation.
+Always run `pytest -q` before committing changes.

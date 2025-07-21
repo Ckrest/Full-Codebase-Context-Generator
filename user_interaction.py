@@ -106,10 +106,10 @@ def ask_search_prompt() -> str:
 def change_settings_event() -> None:
     """Interactively change values in ``settings.json``."""
 
-    import Start  # Local import to avoid circular dependency
+    import config
 
     settings_path = Path("settings.json")
-    settings = Start.load_settings()
+    settings = config.load_settings()
 
     while True:
         print("\nCurrent settings:")
@@ -145,6 +145,5 @@ def change_settings_event() -> None:
     except Exception as e:  # pragma: no cover - don't fail interactivity
         print(f"Failed to save settings: {e}")
 
-    Start.SETTINGS.clear()
-    Start.SETTINGS.update(Start.load_settings())
+    config.reload_settings()
 

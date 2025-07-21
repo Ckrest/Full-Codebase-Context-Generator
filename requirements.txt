@@ -10,5 +10,4 @@ numpy
 pyyaml
 pathspec
 symspellpy
-transformers
 google-genai
