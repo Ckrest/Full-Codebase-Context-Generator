@@ -1,4 +1,5 @@
 from google import genai
+from google.genai import types
 from sentence_transformers import SentenceTransformer
 from config import SETTINGS
 
@@ -28,7 +29,10 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
     """Send ``prompt_text`` to the provided LLM client."""
     if not client:
         return "❌ Generative model client not initialized."
-
+    
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
+    
     api_cfg = SETTINGS.get("api_settings", {})
     if temperature is None:
         temperature = api_cfg.get("temperature", 0.6)
@@ -38,18 +42,28 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
 
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-pro',
+            model="gemini-2.5-pro",
             contents=prompt_text,
-            generation_config={
-                "temperature": temperature,
-                "max_output_tokens": max_tokens,
-                "top_p": top_p,
-            }
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                max_output_tokens=max_tokens,
+                top_p=top_p,
+            ),
         )
-        print(response.text)
-        return response.text.strip()
+        raw_text = (
+            response.candidates[0].content.parts[0].text
+            if response and response.candidates
+            and response.candidates[0].content.parts
+            and hasattr(response.candidates[0].content.parts[0], 'text')
+            else None
+        )
+        if raw_text is None:
+            return "💥 Gemini query failed: No valid response from model."
+        return raw_text.strip()
     except Exception as e:
         return f"💥 Gemini query failed: {e}"
+
+
 
 
 def load_embedding_model(model_path: str | None):
