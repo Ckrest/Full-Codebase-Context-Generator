@@ -2,7 +2,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from user_interaction import start_event, after_generation_event, _load_history
+from user_interaction import start_event, after_generation_event
 from config import (
     SETTINGS,
     reload_settings,
@@ -73,7 +73,6 @@ def main() -> None:
     args = parser.parse_args()
 
     reload_settings()
-    _load_history()
 
     if args.cmd == "extract":
         path = Path(args.path).resolve()

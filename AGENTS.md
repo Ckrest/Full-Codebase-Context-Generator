@@ -46,7 +46,8 @@ Run `python Start.py <command>` where `<command>` is one of:
 - `inspect` – print basic graph statistics
 
 Running `Start.py` with just a path starts the interactive workflow. Command
-history is stored in `.full_context_history.json`.
+history is stored in the `~/.full_context_history/` directory via
+`prompt_toolkit`.
 
 ### Debugging
 
