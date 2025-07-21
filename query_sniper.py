@@ -8,25 +8,28 @@ from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell
 from llm_utils import get_llm_model, call_llm
 
+def get_example_json(n):
+    return ",\n  ".join(f'"query suggestion {i+1}"' for i in range(n))
+
 PROMPT_GEN_TEMPLATE = """You are an expert in semantic code search.
 
-Given the user\u2019s problem statement below, generate {n} recommended queries that are each:
-- Short (5\u201312 words)
+Given the user’s problem statement below, generate {n} recommended queries that are each:
+- Short (5-12 words)
 - Technically focused
 - Different in angle or phrasing
 - Useful for embedding-based code search
 
-Respond only with a JSON list of strings \u2014 no commentary, no markdown.
+Respond only with a JSON list of strings — no commentary, no markdown.
 
 # Problem Statement
 {problem}
 
 # Output Format
 [
-  "query suggestion 1",
-  "query suggestion 2"
+  {get_example_json}
 ]
 """
+
 
 PROMPT_NEW_QUERY = """You previously generated the following recommended queries for a problem. Now generate a single, new query that:
 - Is different in phrasing or focus
@@ -85,14 +88,15 @@ def parse_json_list(text):
         start = text.index("[")
         end = text.rindex("]") + 1
         return json.loads(text[start:end])
-    except Exception:
+    except (ValueError, json.JSONDecodeError):
         return []
 
 
 def generate_prompt_suggestions(problem, count, llm_model):
     if not llm_model or count <= 0:
         return []
-    prompt = PROMPT_GEN_TEMPLATE.format(problem=problem, n=count)
+    example_json = get_example_json(count)
+    prompt = PROMPT_GEN_TEMPLATE.format(problem=problem, n=count, example_json=example_json)
     text = call_llm(llm_model, prompt)
     return parse_json_list(text)
 

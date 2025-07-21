@@ -1,10 +1,11 @@
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from Start import SETTINGS
 
 # Only Gemini is supported right now
 
 def get_llm_model():
-    """Load the LLM model based on settings. Defaults to the Gemini API."""
+    """Load the LLM client based on settings. Defaults to the Gemini API."""
     cfg = SETTINGS.get("LLM_model", {})
     api_key = cfg.get("api_key", "")
     api_type = cfg.get("api_type", "gemini").lower()
@@ -13,8 +14,9 @@ def get_llm_model():
     if api_key:
         if api_type != "gemini":
             raise ValueError(f"Unsupported API type: {api_type}")
-        genai.configure(api_key=api_key)
-        return genai.GenerativeModel("gemini-2.5-pro")
+        # Using Client for more versatile use cases like file uploads
+        client = genai.Client(api_key=api_key)
+        return client
     if local_path:
         print(f"⚠️ Local LLM path '{local_path}' provided but loading is not implemented.")
         return None
@@ -22,10 +24,10 @@ def get_llm_model():
     return None
 
 
-def call_llm(model, prompt_text, temperature=None, max_tokens=None):
-    """Send ``prompt_text`` to the provided LLM model."""
-    if not model:
-        return "❌ Generative model not initialized."
+def call_llm(client, prompt_text, temperature=None, max_tokens=None):
+    """Send ``prompt_text`` to the provided LLM client."""
+    if not client:
+        return "❌ Generative model client not initialized."
 
     api_cfg = SETTINGS.get("api_settings", {})
     if temperature is None:
@@ -35,8 +37,9 @@ def call_llm(model, prompt_text, temperature=None, max_tokens=None):
     top_p = api_cfg.get("top_p", 1.0)
 
     try:
-        response = model.generate_content(
-            prompt_text,
+        response = client.models.generate_content(
+            model='gemini-pro',
+            contents=prompt_text,
             generation_config={
                 "temperature": temperature,
                 "top_p": top_p,
