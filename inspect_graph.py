@@ -2,7 +2,7 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from Start import SETTINGS
+from config import SETTINGS
 
 def load_call_graph(path):
     with open(path, "r", encoding="utf-8") as f:

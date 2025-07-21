@@ -16,7 +16,7 @@ import pathspec
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from Start import SETTINGS
+from config import SETTINGS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

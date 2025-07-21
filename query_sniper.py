@@ -4,9 +4,8 @@ import sys
 
 import faiss
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from symspellpy import SymSpell
-from llm_utils import get_llm_model, call_llm
+from llm_utils import get_llm_model, call_llm, load_embedding_model
 
 def get_example_json(n):
     return ",\n  ".join(f'"query suggestion {i+1}"' for i in range(n))
@@ -50,7 +49,7 @@ Respond only with the query string.
 from context_utils import expand_graph
 from summary_formatter import format_summary
 from prompt_builder import build_prompt
-from Start import SETTINGS
+from config import SETTINGS
 
 def build_symspell(metadata):
     """Builds a SymSpell dictionary for spell correction."""
@@ -127,13 +126,7 @@ def main(project_folder, problem=None, initial_query=None):
 
     # --- Model and Data Loading ---
     print("🚀 Loading models and data...")
-    if not model_path:
-        print(
-            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
-        )
-        model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-    else:
-        model = SentenceTransformer(model_path)
+    model = load_embedding_model(model_path)
     llm_model = get_llm_model()
     index = faiss.read_index(str(INDEX_PATH))
     with open(METADATA_PATH, "r", encoding="utf-8") as f:
