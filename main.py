@@ -5,7 +5,13 @@ import json
 
 from interactive_cli import start_event, after_generation_event
 from config import SETTINGS, reload_settings
-from graph import crawl_directory, build_call_graph, save_graph_json, analyze_graph
+from graph import (
+    crawl_directory,
+    build_call_graph,
+    save_graph_json,
+    analyze_graph,
+    visualize_call_graph,
+)
 from embedding import generate_embeddings
 from query import main as query_main
 
@@ -13,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def run_extract(project_path: Path, project_name: str) -> None:
+def run_extract(project_path: Path, project_name: str, visualize: bool = False) -> None:
     logger.info("Crawling source files in %s", project_path)
     entries = crawl_directory(str(project_path), respect_gitignore=True)
     logger.info("Building call graph...")
@@ -23,6 +29,11 @@ def run_extract(project_path: Path, project_name: str) -> None:
     graph_path = out_dir / "call_graph.json"
     save_graph_json(graph, graph_path)
     logger.info("Saved call graph to %s", graph_path)
+    if visualize:
+        img_path = graph_path.with_suffix(".png")
+        data = json.loads(graph_path.read_text())
+        visualize_call_graph(data, str(img_path))
+        logger.info("Saved visualization to %s", img_path)
 
 
 def run_generate_embeddings(project_name: str) -> None:
@@ -46,12 +57,25 @@ def run_inspect(project_name: str) -> None:
     analyze_graph(data)
 
 
+def run_visualize(project_name: str) -> None:
+    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
+    call_graph_path = out_dir / "call_graph.json"
+    if not call_graph_path.exists():
+        print(f"No call_graph.json found in {out_dir}.")
+        return
+    data = json.loads(call_graph_path.read_text())
+    img_path = out_dir / "call_graph.png"
+    visualize_call_graph(data, str(img_path))
+    print(f"Saved visualization to {img_path}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="LLM Extreme Context")
     sub = parser.add_subparsers(dest="cmd")
 
     p_extract = sub.add_parser("extract", help="Extract source and build call graph")
     p_extract.add_argument("path")
+    p_extract.add_argument("--visualize", action="store_true", help="Save graph image after extraction")
 
     p_embed = sub.add_parser("embed", help="Generate embeddings for project")
     p_embed.add_argument("project")
@@ -64,6 +88,9 @@ def main() -> None:
     p_inspect = sub.add_parser("inspect", help="Inspect call graph")
     p_inspect.add_argument("project")
 
+    p_vis = sub.add_parser("visualize", help="Visualize existing call graph")
+    p_vis.add_argument("project")
+
     parser.add_argument("path", nargs="?", help="Project directory for interactive mode")
 
     args = parser.parse_args()
@@ -72,7 +99,7 @@ def main() -> None:
 
     if args.cmd == "extract":
         path = Path(args.path).resolve()
-        run_extract(path, path.name)
+        run_extract(path, path.name, visualize=args.visualize)
         return
     if args.cmd == "embed":
         run_generate_embeddings(args.project)
@@ -82,6 +109,9 @@ def main() -> None:
         return
     if args.cmd == "inspect":
         run_inspect(args.project)
+        return
+    if args.cmd == "visualize":
+        run_visualize(args.project)
         return
 
     while True:

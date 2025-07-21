@@ -46,6 +46,28 @@ def generate_new_prompt(problem: str, existing, llm_model):
     return call_llm(llm_model, prompt).strip()
 
 
+def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
+    if not llm_model or count <= 0:
+        return []
+    prompt = (
+        "You are helping search a codebase. Given the following question, "
+        f"break it into {count} distinct sub-questions. Each one should represent a different "
+        "aspect of the original question that might be independently searchable. "
+        "Be concise and technical.\n\n# Original Question:\n"
+        f"{query}\n\n# Sub-Queries:"
+    )
+    text = call_llm(llm_model, prompt)
+    results = []
+    for line in text.splitlines():
+        t = line.strip()
+        if not t:
+            continue
+        if t[0].isdigit():
+            t = t.split(".", 1)[-1].strip()
+        results.append(t)
+    return results[:count]
+
+
 def main(project_folder: str, problem: str | None = None, initial_query: str | None = None):
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
     base_dir = Path(SETTINGS["paths"]["output_dir"]) / project_folder
@@ -85,7 +107,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         problem = ask_problem()
 
     suggestion_count = int(SETTINGS["query"].get("prompt_suggestion_count", 0))
-    suggestions = generate_prompt_suggestions(problem, suggestion_count, llm_model)
+    from interactive_cli import get_prompt_suggestions
+    suggestions = get_prompt_suggestions()
+    if not suggestions:
+        suggestions.extend(generate_prompt_suggestions(problem, suggestion_count, llm_model))
 
     def run_search(query, last_indices=None):
         nonlocal last
@@ -121,23 +146,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         sub_queries = []
         if use_sub_questions and llm_model:
             print("Generating sub-queries...")
-            prompt = (
-                "You are helping search a codebase. Given the following question, "
-                f"break it into {sub_question_count} distinct sub-questions. Each one should represent a different aspect "
-                "of the original question that might be independently searchable. Be concise, specific, "
-                "and prefer technical phrasing.\n\n# Original Question:\n"
-                f"{query}\n\n# Sub-Queries:"
-            )
-            sub_text = call_llm(llm_model, prompt)
-            for line in sub_text.splitlines():
-                t = line.strip()
-                if not t:
-                    continue
-                if t[0].isdigit():
-                    t = t.split(".", 1)[-1].strip()
-                sub_queries.append(t)
+            sub_queries = generate_sub_questions(query, sub_question_count, llm_model)
             if sub_queries:
-                sub_queries = sub_queries[:sub_question_count]
                 queries.extend(correct_phrase(symspell, q) for q in sub_queries)
         elif use_sub_questions:
             print("Sub-question generation skipped because no LLM model was available.")
@@ -153,13 +163,22 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                     f.write("Sub-queries: none\n")
                 f.write("\n")
 
-        query_vec = average_embeddings(model, queries)
-        distances, indices = index.search(np.asarray(query_vec, dtype=np.float32), top_k)
-        last = indices[0]
+        vecs = model.encode(queries, normalize_embeddings=True)
+        if vecs.ndim == 1:
+            vecs = vecs.reshape(1, -1)
+        all_scores: dict[int, list[float]] = {}
+        for vec in vecs:
+            dists, idxs = index.search(np.asarray(vec, dtype=np.float32).reshape(1, -1), top_k)
+            for dist, idx in zip(dists[0], idxs[0]):
+                all_scores.setdefault(int(idx), []).append(float(dist))
+
+        averaged = sorted(((i, np.mean(ds)) for i, ds in all_scores.items()), key=lambda x: x[1])
+        final_indices = [i for i, _ in averaged[:top_k]]
+        last = final_indices
 
         print("\n🎯 Top Matches:")
         summary = format_summary(
-            indices[0],
+            final_indices,
             metadata,
             node_map,
             save_path=str(base_dir / "last_summary.txt"),
@@ -169,7 +188,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         print()
         with open(results_file, "a", encoding="utf-8") as f:
             f.write("Functions returned:\n")
-            for i in indices[0]:
+            for i in final_indices:
                 meta = metadata[i]
                 node = node_map.get(meta.get("id"), {})
                 name = node.get("name", meta.get("name"))
@@ -179,7 +198,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         prompt_text = build_prompt(
             metadata_path,
             call_graph_path,
-            [int(i) for i in indices[0]],
+            [int(i) for i in final_indices],
             problem,
             base_dir=SETTINGS.get("project_root"),
             save_path=str(base_dir / "initial_prompt.txt"),
@@ -204,40 +223,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         run_search(initial_query, last)
         return
 
+    from interactive_cli import ask_search_prompt
+
     while True:
-        print("\nAvailable query prompts:")
-        print("1) Generate a new prompt suggestion")
-        print("2) Use problem statement")
-        for i, q in enumerate(suggestions, start=3):
-            print(f"{i}) {q}")
-
-        from interactive_cli import ask_search_prompt
-
-        user_in = ask_search_prompt()
-        if user_in.strip().lower() in {"exit", "quit"}:
-            print("👋 Exiting.")
-            break
-
-        if user_in.isdigit():
-            choice = int(user_in)
-            if choice == 1:
-                new_q = generate_new_prompt(problem, suggestions, llm_model)
-                if not new_q:
-                    print("LLM not available to generate a query.")
-                    continue
-                print(f"Generated prompt: {new_q}")
-                suggestions.append(new_q)
-                query = new_q
-            elif choice == 2:
-                query = problem
-            elif 3 <= choice < 3 + len(suggestions):
-                query = suggestions[choice - 3]
-            else:
-                print("Invalid selection.")
-                continue
-        else:
-            query = user_in
-
+        query = ask_search_prompt(suggestions, problem, llm_model)
         if query.strip().lower() in {"exit", "quit"}:
             print("👋 Exiting.")
             break

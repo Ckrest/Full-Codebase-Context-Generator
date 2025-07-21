@@ -493,6 +493,36 @@ def render_call_graph_image(graph: nx.DiGraph, path: Path):
     plt.close()
 
 
+def visualize_call_graph(data: dict, out_path: str) -> None:
+    """Render call graph JSON data to an image file."""
+    G = nx.DiGraph()
+    for node in data.get("nodes", []):
+        G.add_node(node["id"])
+    for edge in data.get("edges", []):
+        G.add_edge(edge.get("from"), edge.get("to"))
+
+    plt.figure(figsize=tuple(VIS_SETTINGS.get("figsize", [12, 10])))
+    pos = nx.spring_layout(
+        G,
+        k=VIS_SETTINGS.get("spring_layout_k", 0.5),
+        iterations=VIS_SETTINGS.get("spring_layout_iterations", 20),
+    )
+    nx.draw(
+        G,
+        pos,
+        labels={n: n.split("::")[-1] for n in G.nodes},
+        with_labels=True,
+        node_size=VIS_SETTINGS.get("node_size", 1500),
+        node_color=VIS_SETTINGS.get("node_color", "skyblue"),
+        font_size=VIS_SETTINGS.get("font_size", 8),
+        arrows=True,
+    )
+    out = Path(out_path)
+    fmt = out.suffix.lstrip(".") or "png"
+    plt.savefig(str(out), format=fmt.upper(), bbox_inches="tight")
+    plt.close()
+
+
 # ===== Context Gathering =====
 
 def build_neighbor_map(graph: dict, bidirectional: bool = True) -> dict:
