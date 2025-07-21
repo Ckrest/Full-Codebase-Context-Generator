@@ -4,7 +4,7 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from Start import DEFAULT_SETTINGS, ensure_example_settings
+from config import DEFAULT_SETTINGS, ensure_example_settings
 
 
 def test_settings_example_matches_defaults(tmp_path, monkeypatch):

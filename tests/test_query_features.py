@@ -4,8 +4,9 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from Start import DEFAULT_SETTINGS
-from query_sniper import build_symspell, correct_query, average_embeddings
+from config import DEFAULT_SETTINGS
+from spellcheck_utils import create_symspell_from_terms, correct_phrase
+from query_sniper import average_embeddings
 
 
 def test_default_query_settings():
@@ -16,9 +17,9 @@ def test_default_query_settings():
 
 
 def test_spellcheck_basic():
-    metadata = [{"name": "foobar"}]
-    sym = build_symspell(metadata)
-    corrected = correct_query(sym, "foobzr")
+    terms = ["foobar"]
+    sym = create_symspell_from_terms(terms)
+    corrected = correct_phrase(sym, "foobzr")
     assert corrected == "foobar"
 
 
