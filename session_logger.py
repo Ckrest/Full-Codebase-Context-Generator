@@ -20,7 +20,8 @@ def log_session_to_json(data: dict, path: str) -> str:
     """Write session data to ``path`` in JSON format and return file path."""
     logs = Path(path)
     logs.mkdir(parents=True, exist_ok=True)
-    fname = f"{get_timestamp()}_{slugify(data.get('original_query', 'query'))}.json"
+    slug = slugify(data.get("original_query", "query"))
+    fname = f"query_{slug}_{get_timestamp()}.json"
     full_path = logs / fname
     with open(full_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
@@ -32,7 +33,8 @@ def log_summary_to_markdown(data: dict, path: str) -> str:
     """Write a human-readable summary of ``data`` to ``path`` and return file path."""
     logs = Path(path)
     logs.mkdir(parents=True, exist_ok=True)
-    fname = f"{get_timestamp()}_{slugify(data.get('original_query', 'query'))}.md"
+    slug = slugify(data.get("original_query", "query"))
+    fname = f"query_{slug}_{get_timestamp()}.md"
     full_path = logs / fname
 
     subqueries = data.get("subqueries", [])
@@ -42,6 +44,7 @@ def log_summary_to_markdown(data: dict, path: str) -> str:
     unique_funcs = len(functions)
     core_hits = sum(1 for f in functions.values() if len(f.get("subqueries", [])) == total_sub)
     unique_hits = sum(1 for f in functions.values() if len(f.get("subqueries", [])) == 1)
+    dup_funcs = sum(1 for f in functions.values() if f.get("duplicate_count", 0) > 1)
 
     lines = [
         f"# Query Summary",
@@ -52,6 +55,7 @@ def log_summary_to_markdown(data: dict, path: str) -> str:
         f"Total unique functions: {unique_funcs}",
         f"Number of core hits: {core_hits}",
         f"Number of unique hits: {unique_hits}",
+        f"Functions appearing multiple times: {dup_funcs}",
         "",
         "## Subquery Results",
     ]
@@ -60,7 +64,16 @@ def log_summary_to_markdown(data: dict, path: str) -> str:
         lines.append("")
         lines.append(f"### {i}. {sq.get('text','')}")
         for fn in sq.get("functions", []):
-            lines.append(f"- {fn['name']} ({fn['file']}, score {fn['score']:.3f}, rank {fn['rank']})")
+            meta = functions.get(fn["name"], {})
+            tags = []
+            if len(meta.get("subqueries", [])) == total_sub:
+                tags.append("CORE")
+            if meta.get("duplicate_count", 0) > 1:
+                tags.append("DUP")
+            tag_text = f" [{' ,'.join(tags)}]" if tags else ""
+            lines.append(
+                f"- {fn['name']} ({fn['file']}, score {fn['score']:.3f}, rank {fn['rank']}){tag_text}"
+            )
 
     with open(full_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")

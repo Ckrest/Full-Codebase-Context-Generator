@@ -80,6 +80,12 @@ DEFAULT_SETTINGS = {
         "embedding_dim": 384,
         "encoder_model_path": "",
     },
+    "logging": {
+        "log_markdown": True,
+        "log_json": True,
+        "track_duplicates": True,
+        "max_functions_to_log": 100,
+    },
 }
 
 

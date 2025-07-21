@@ -197,7 +197,11 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 subquery_data[sq_idx]["functions"].append(entry)
 
                 func_meta = function_index.setdefault(
-                    name, {"file": file_path, "subqueries": []}
+                    name,
+                    {
+                        "file": file_path,
+                        "subqueries": [],
+                    },
                 )
                 func_meta["subqueries"].append(
                     {
@@ -210,7 +214,18 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
                 all_scores.setdefault(int(idx), []).append(float(dist))
 
-        averaged = sorted(((i, np.mean(ds)) for i, ds in all_scores.items()), key=lambda x: x[1])
+        total_sub_count = len(queries)
+        for meta in function_index.values():
+            scores = [s["score"] for s in meta["subqueries"]]
+            times = len(scores)
+            meta["value_score"] = float(np.mean(scores)) if scores else 0.0
+            meta["duplicate_count"] = times if times > 1 else 0
+            meta["reason"] = (
+                f"matched {times} subqueries" if times > 1 else "matched a single subquery"
+            )
+        averaged = sorted(
+            ((i, np.mean(ds)) for i, ds in all_scores.items()), key=lambda x: x[1]
+        )
         final_indices = [i for i, _ in averaged[:top_k]]
         last = final_indices
 
@@ -277,16 +292,47 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             print("Skipping LLM query as the model is not available.")
             final_context = ""
 
+        max_log = SETTINGS.get("logging", {}).get("max_functions_to_log", 100)
+        sorted_funcs = sorted(
+            function_index.items(), key=lambda x: -x[1].get("value_score", 0.0)
+        )
+        if max_log:
+            sorted_funcs = sorted_funcs[:max_log]
+        function_index = {k: v for k, v in sorted_funcs}
+
+        if not SETTINGS.get("logging", {}).get("track_duplicates", True):
+            for meta in function_index.values():
+                meta.pop("duplicate_count", None)
+
+        summary_data = {
+            "total_subqueries": len(queries),
+            "total_functions": len(function_index),
+            "core_hits": sum(
+                1
+                for m in function_index.values()
+                if len(m.get("subqueries", [])) == len(queries)
+            ),
+            "duplicate_functions": sum(
+                1
+                for m in function_index.values()
+                if m.get("duplicate_count", 0) > 1
+            ),
+        }
+
         log_data = {
             "original_query": query,
             "subqueries": subquery_data,
             "functions": function_index,
+            "summary": summary_data,
             "llm_response": final_context,
         }
-        json_file = log_session_to_json(log_data, "logs")
-        md_file = log_summary_to_markdown(log_data, "logs")
-        print(f"✔ Saved {json_file}")
-        print(f"✔ Saved {md_file}")
+
+        if SETTINGS.get("logging", {}).get("log_json", True):
+            json_file = log_session_to_json(log_data, "logs")
+            print(f"✔ Saved {json_file}")
+        if SETTINGS.get("logging", {}).get("log_markdown", True):
+            md_file = log_summary_to_markdown(log_data, "logs")
+            print(f"✔ Saved {md_file}")
 
         return last
 
