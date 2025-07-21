@@ -9,8 +9,7 @@ from llm import get_llm_model, call_llm, PROMPT_GEN_TEMPLATE, PROMPT_NEW_QUERY, 
 from embedding import load_embedding_model
 from spellcheck_utils import create_symspell_from_terms, correct_phrase
 from graph import expand_graph
-from summary_formatter import format_summary
-from prompt_builder import build_prompt
+from prompt_builder import build_prompt, format_summary
 from config import SETTINGS
 
 
@@ -246,12 +245,3 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         last = run_search(query, last)
 
 
-if __name__ == "__main__":
-    from interactive_cli import ask_project_folder
-
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
-    else:
-        folder = ask_project_folder()
-        if folder:
-            main(folder)
