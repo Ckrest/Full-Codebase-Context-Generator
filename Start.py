@@ -5,6 +5,8 @@ import argparse
 import logging
 from pathlib import Path
 
+from user_interaction import start_event, after_generation_event, _load_history
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -82,6 +84,7 @@ DEFAULT_SETTINGS = {
         "encoder_model_path": "",
     },
 }
+
 
 
 def ensure_example_settings():
@@ -226,10 +229,10 @@ def run_generate_embeddings(project_name):
     gen_main(project_name)
 
 
-def run_query(project_name, problem):
+def run_query(project_name, problem, prompt):
     from query_sniper import main as query_main
-    logger.info("Launching interactive query tool...")
-    query_main(project_name, problem)
+    logger.info("Launching query tool...")
+    query_main(project_name, problem, initial_query=prompt)
 
 
 def main():
@@ -237,37 +240,41 @@ def main():
     parser.add_argument("path", nargs="?", help="Project directory to analyze")
     args = parser.parse_args()
 
-    project_path = Path(args.path) if args.path else None
-    if not project_path:
-        user = input("Enter path to project directory: ")
-        project_path = Path(user.strip())
+    _load_history()
 
-    if not project_path.exists():
-        parser.error(f"Path '{project_path}' does not exist")
+    while True:
+        if args.path:
+            start_values = Path(args.path), None, None
+            args.path = None
+        else:
+            start_values = start_event()
 
-    project_name = project_path.name
-    problem = input("What problem are you trying to solve?\n> ").strip()
-    SETTINGS["default_project"] = project_name
-    SETTINGS["project_root"] = str(project_path.resolve())
+        project_path, problem, prompt = start_values
+        project_name = project_path.name
+        SETTINGS["default_project"] = project_name
+        SETTINGS["project_root"] = str(project_path.resolve())
 
-    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
-    call_graph_path = out_dir / "call_graph.json"
-    embeddings_path = out_dir / "embeddings.npy"
-    index_path = out_dir / "faiss.index"
+        out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
+        call_graph_path = out_dir / "call_graph.json"
+        embeddings_path = out_dir / "embeddings.npy"
+        index_path = out_dir / "faiss.index"
 
-    if not call_graph_path.exists():
-        logger.info("Extracting project and building call graph...")
-        run_extract(project_path, project_name)
-    else:
-        logger.info("Using existing call graph at %s", call_graph_path)
+        if not call_graph_path.exists():
+            logger.info("Extracting project and building call graph...")
+            run_extract(project_path, project_name)
+        else:
+            logger.info("Using existing call graph at %s", call_graph_path)
 
-    if not (embeddings_path.exists() and index_path.exists()):
-        logger.info("Generating embeddings...")
-        run_generate_embeddings(project_name)
-    else:
-        logger.info("Using existing embeddings at %s", embeddings_path)
+        if not (embeddings_path.exists() and index_path.exists()):
+            logger.info("Generating embeddings...")
+            run_generate_embeddings(project_name)
+        else:
+            logger.info("Using existing embeddings at %s", embeddings_path)
 
-    run_query(project_name, problem)
+        run_query(project_name, problem, prompt)
+
+        if not after_generation_event():
+            break
 
 
 if __name__ == "__main__":

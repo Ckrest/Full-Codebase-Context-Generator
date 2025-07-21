@@ -108,8 +108,9 @@ def generate_new_prompt(problem, existing, llm_model):
     return call_llm(llm_model, prompt).strip()
 
 
-def main(project_folder, problem=None):
-    """Interactive search of the generated embeddings."""
+def main(project_folder, problem=None, initial_query=None):
+    """Search the generated embeddings. If ``initial_query`` is provided, run
+    once and exit without prompting."""
     # --- Configuration Loading ---
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
     BASE_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
@@ -156,82 +157,19 @@ def main(project_folder, problem=None):
     suggestion_count = int(SETTINGS["query"].get("prompt_suggestion_count", 0))
     suggestions = generate_prompt_suggestions(problem, suggestion_count, llm_model)
 
-    # --- Main Interactive Loop ---
-    last = None
-    while True:
-        print("\nAvailable query prompts:")
-        print("1) Generate a new prompt suggestion")
-        print("2) Use problem statement")
-        for i, q in enumerate(suggestions, start=3):
-            print(f"{i}) {q}")
-
-        user_in = input("What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ")
-        if user_in.strip().lower() in {"exit", "quit"}:
-            print("👋 Exiting.")
-            break
-
-        if user_in.startswith("neighbors"):
-            if not last:
-                print("No previous search results.")
-                continue
-            try:
-                num = int(user_in.split()[1]) - 1
-                idx = last[num]
-            except (ValueError, IndexError):
-                print("Usage: neighbors <result_number>")
-                continue
-
-            meta = metadata[idx]
-            nb_ids = expand_graph(
-                graph,
-                meta["id"],
-                depth=SETTINGS["context"].get("context_hops", 1),
-                limit=SETTINGS["context"].get("max_neighbors", 5),
-                bidirectional=SETTINGS["context"].get("bidirectional", True),
-                outbound_weight=SETTINGS["context"].get("outbound_weight", 1.0),
-                inbound_weight=SETTINGS["context"].get("inbound_weight", 1.0),
-            )
-            print("Neighbors:")
-            for nid in nb_ids:
-                node = node_map.get(nid, {})
-                print(f"- {node.get('name')} — {node.get('file_path')}")
-            print()
-            continue
-
-        if user_in.isdigit():
-            choice = int(user_in)
-            if choice == 1:
-                new_q = generate_new_prompt(problem, suggestions, llm_model)
-                if not new_q:
-                    print("LLM not available to generate a query.")
-                    continue
-                print(f"Generated prompt: {new_q}")
-                suggestions.append(new_q)
-                query = new_q
-            elif choice == 2:
-                query = problem
-            elif 3 <= choice < 3 + len(suggestions):
-                query = suggestions[choice - 3]
-            else:
-                print("Invalid selection.")
-                continue
-        else:
-            query = user_in
-        if query.strip().lower() in {"exit", "quit"}:
-            print("👋 Exiting.")
-            break
-
+    def run_search(query, last_indices=None):
+        nonlocal last
         if query.startswith("neighbors"):
-            if not last:
+            if not last_indices:
                 print("No previous search results.")
-                continue
+                return last_indices
             try:
                 num = int(query.split()[1]) - 1
-                idx = last[num]
+                idx = last_indices[num]
             except (ValueError, IndexError):
                 print("Usage: neighbors <result_number>")
-                continue
-            
+                return last_indices
+
             meta = metadata[idx]
             nb_ids = expand_graph(
                 graph,
@@ -247,7 +185,7 @@ def main(project_folder, problem=None):
                 node = node_map.get(nid, {})
                 print(f"- {node.get('name')} — {node.get('file_path')}")
             print()
-            continue
+            return last_indices
 
         queries = [correct_query(symspell, query)]
         sub_queries = []
@@ -319,7 +257,7 @@ def main(project_folder, problem=None):
         print("\nGenerated initial prompt:\n")
         print(prompt_text)
         print()
-        
+
         if llm_model:
             print("⏳ Querying Gemini...")
             FINAL_CONTEXT = call_llm(llm_model, prompt_text)
@@ -329,6 +267,51 @@ def main(project_folder, problem=None):
                 f.write(FINAL_CONTEXT + "\n\n")
         else:
             print("Skipping LLM query as the model is not available.")
+        return last
+
+    # --- Main Interactive Loop ---
+    last = None
+    if initial_query:
+        run_search(initial_query, last)
+        return
+
+    while True:
+        print("\nAvailable query prompts:")
+        print("1) Generate a new prompt suggestion")
+        print("2) Use problem statement")
+        for i, q in enumerate(suggestions, start=3):
+            print(f"{i}) {q}")
+
+        user_in = input("What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ")
+        if user_in.strip().lower() in {"exit", "quit"}:
+            print("👋 Exiting.")
+            break
+
+        if user_in.isdigit():
+            choice = int(user_in)
+            if choice == 1:
+                new_q = generate_new_prompt(problem, suggestions, llm_model)
+                if not new_q:
+                    print("LLM not available to generate a query.")
+                    continue
+                print(f"Generated prompt: {new_q}")
+                suggestions.append(new_q)
+                query = new_q
+            elif choice == 2:
+                query = problem
+            elif 3 <= choice < 3 + len(suggestions):
+                query = suggestions[choice - 3]
+            else:
+                print("Invalid selection.")
+                continue
+        else:
+            query = user_in
+
+        if query.strip().lower() in {"exit", "quit"}:
+            print("👋 Exiting.")
+            break
+
+        last = run_search(query, last)
 
 
 if __name__ == "__main__":
