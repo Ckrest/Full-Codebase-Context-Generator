@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import atexit
 from pathlib import Path
 
 try:
@@ -11,6 +12,7 @@ except Exception:  # pragma: no cover - optional dependency
     readline = None
 
 HISTORY_FILE = Path.home() / ".full_context_history.json"
+READLINE_HISTORY_FILE = Path.home() / ".full_context_readline"
 _INPUT_HISTORY: dict[str, list[str]] = {}
 
 
@@ -24,11 +26,32 @@ def _load_history() -> None:
             _INPUT_HISTORY = json.loads(HISTORY_FILE.read_text())
         except Exception:
             _INPUT_HISTORY = {}
+    if readline:
+        try:
+            if READLINE_HISTORY_FILE.exists():
+                readline.read_history_file(str(READLINE_HISTORY_FILE))
+        except Exception:
+            pass
+        atexit.register(lambda: _save_readline())
 
 
 def _save_history() -> None:
     try:
         HISTORY_FILE.write_text(json.dumps(_INPUT_HISTORY, indent=2))
+    except Exception:
+        pass
+    _save_readline()
+
+
+def _save_readline() -> None:
+    if not readline:
+        return
+    try:
+        readline.clear_history()
+        for lst in _INPUT_HISTORY.values():
+            for item in lst:
+                readline.add_history(item)
+        readline.write_history_file(str(READLINE_HISTORY_FILE))
     except Exception:
         pass
 
