@@ -11,6 +11,10 @@ from spellcheck_utils import create_symspell_from_terms, correct_phrase
 from graph import expand_graph
 from prompt_builder import build_prompt, format_summary
 from config import SETTINGS
+from session_logger import (
+    log_session_to_json,
+    log_summary_to_markdown,
+)
 
 
 def average_embeddings(model, texts) -> np.ndarray:
@@ -166,10 +170,44 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         vecs = model.encode(queries, normalize_embeddings=True)
         if vecs.ndim == 1:
             vecs = vecs.reshape(1, -1)
+
+        subquery_data = [
+            {"text": q, "embedding": vec.tolist(), "functions": []}
+            for q, vec in zip(queries, vecs)
+        ]
+        function_index: dict[str, dict] = {}
         all_scores: dict[int, list[float]] = {}
-        for vec in vecs:
-            dists, idxs = index.search(np.asarray(vec, dtype=np.float32).reshape(1, -1), top_k)
-            for dist, idx in zip(dists[0], idxs[0]):
+
+        for sq_idx, vec in enumerate(vecs):
+            dists, idxs = index.search(
+                np.asarray(vec, dtype=np.float32).reshape(1, -1), top_k
+            )
+            for rank, (dist, idx) in enumerate(zip(dists[0], idxs[0]), start=1):
+                meta = metadata[int(idx)]
+                node = node_map.get(meta.get("id"), {})
+                name = node.get("name", meta.get("name"))
+                file_path = node.get("file_path", meta.get("file"))
+
+                entry = {
+                    "name": name,
+                    "file": file_path,
+                    "score": float(dist),
+                    "rank": rank,
+                }
+                subquery_data[sq_idx]["functions"].append(entry)
+
+                func_meta = function_index.setdefault(
+                    name, {"file": file_path, "subqueries": []}
+                )
+                func_meta["subqueries"].append(
+                    {
+                        "index": sq_idx,
+                        "text": queries[sq_idx],
+                        "score": float(dist),
+                        "rank": rank,
+                    }
+                )
+
                 all_scores.setdefault(int(idx), []).append(float(dist))
 
         averaged = sorted(((i, np.mean(ds)) for i, ds in all_scores.items()), key=lambda x: x[1])
@@ -177,6 +215,26 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         last = final_indices
 
         print("\n🎯 Top Matches:")
+        for rank, idx in enumerate(final_indices, start=1):
+            meta = metadata[idx]
+            node = node_map.get(meta.get("id"), {})
+            name = node.get("name", meta.get("name"))
+            file_path = node.get("file_path", meta.get("file"))
+
+            best_score = None
+            best_text = ""
+            for sq in subquery_data:
+                for fn in sq["functions"]:
+                    if fn["name"] == name and fn["file"] == file_path:
+                        if best_score is None or fn["score"] > best_score:
+                            best_score = fn["score"]
+                            best_text = sq["text"]
+
+            score_str = f"{best_score:.3f}" if best_score is not None else "n/a"
+            print(
+                f"- {name} (from {file_path}, rank #{rank}, similarity {score_str}) via '{best_text}'"
+            )
+
         summary = format_summary(
             final_indices,
             metadata,
@@ -186,6 +244,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         )
         print(summary)
         print()
+
         with open(results_file, "a", encoding="utf-8") as f:
             f.write("Functions returned:\n")
             for i in final_indices:
@@ -216,6 +275,19 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 f.write(final_context + "\n\n")
         else:
             print("Skipping LLM query as the model is not available.")
+            final_context = ""
+
+        log_data = {
+            "original_query": query,
+            "subqueries": subquery_data,
+            "functions": function_index,
+            "llm_response": final_context,
+        }
+        json_file = log_session_to_json(log_data, "logs")
+        md_file = log_summary_to_markdown(log_data, "logs")
+        print(f"✔ Saved {json_file}")
+        print(f"✔ Saved {md_file}")
+
         return last
 
     last = None
