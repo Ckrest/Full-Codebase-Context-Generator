@@ -6,7 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from config import DEFAULT_SETTINGS
 from spellcheck_utils import create_symspell_from_terms, correct_phrase
-from query_sniper import average_embeddings
+from query import average_embeddings
 
 
 def test_default_query_settings():

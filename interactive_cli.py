@@ -1,10 +1,5 @@
-"""Utilities for interactive CLI events."""
-
-from __future__ import annotations
-
-import json
 from pathlib import Path
-
+import json
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 
@@ -23,7 +18,6 @@ def _get_session(key: str) -> PromptSession:
 
 
 def ask_with_history(prompt: str, key: str) -> str:
-    """Prompt the user with ``prompt`` using history keyed by ``key``."""
     session = _get_session(key)
     while True:
         answer = session.prompt(prompt)
@@ -34,8 +28,6 @@ def ask_with_history(prompt: str, key: str) -> str:
 
 
 def start_event(path: Path | None = None) -> tuple[Path, str, str]:
-    """Ask for path, problem and query prompt."""
-
     while not path:
         p = ask_with_history("Enter path to project directory: ", "project_path")
         path = Path(p.strip())
@@ -51,21 +43,15 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
 
 
 def after_generation_event() -> bool:
-    """Ask the user if they want to start over."""
-
     ans = ask_with_history("Start over? [y/N] ", "after_generation").strip().lower()
     return ans.startswith("y")
 
 
 def ask_problem() -> str:
-    """Ask the user for the problem statement."""
-
     return ask_with_history("What problem are you trying to solve?\n> ", "problem").strip()
 
 
 def ask_project_folder() -> str:
-    """Ask for a project folder relative to ``output_dir``."""
-
     return ask_with_history(
         "Enter the project folder to analyze (relative to output_dir): ",
         "project_folder",
@@ -73,8 +59,6 @@ def ask_project_folder() -> str:
 
 
 def ask_search_prompt() -> str:
-    """Prompt for the query used to find related functions."""
-
     return ask_with_history(
         "What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ",
         "prompt",
@@ -82,8 +66,6 @@ def ask_search_prompt() -> str:
 
 
 def change_settings_event() -> None:
-    """Interactively change values in ``settings.json``."""
-
     import config
 
     settings_path = Path("settings.json")
@@ -120,8 +102,7 @@ def change_settings_event() -> None:
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
             f.write("\n")
-    except Exception as e:  # pragma: no cover - don't fail interactivity
+    except Exception as e:
         print(f"Failed to save settings: {e}")
 
     config.reload_settings()
-

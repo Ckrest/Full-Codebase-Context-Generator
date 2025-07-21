@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-import LLM_Extreme_Context as lec
+import graph as lec
 
 
 def test_extract_from_python(tmp_path):

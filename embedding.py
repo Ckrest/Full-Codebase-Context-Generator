@@ -1,25 +1,37 @@
 import json
+from pathlib import Path
 import numpy as np
 import faiss
-from pathlib import Path
 from tqdm import tqdm
-from context_utils import gather_context
+from sentence_transformers import SentenceTransformer
 
 from config import SETTINGS
-from llm_utils import load_embedding_model
-def main(project_folder):
-    CALL_GRAPH_PATH = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
-    OUTPUT_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
+from graph import gather_context
+
+
+def load_embedding_model(model_path: str | None):
+    """Load a ``SentenceTransformer`` model or download a default."""
+    if not model_path:
+        print(
+            "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
+        )
+        return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    return SentenceTransformer(model_path)
+
+
+def generate_embeddings(project_folder: str) -> None:
+    """Generate embeddings and FAISS index for a project."""
+    call_graph_path = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
+    output_dir = Path(SETTINGS["paths"]["output_dir"]) / project_folder
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
 
     print("Loading embedding model...")
     model = load_embedding_model(model_path)
+    embedding_dim = model.get_sentence_embedding_dimension()
+    print(f"Detected embedding dimension: {embedding_dim}")
 
-    EMBEDDING_DIM = model.get_sentence_embedding_dimension()
-    print(f"Detected embedding dimension: {EMBEDDING_DIM}")
-
-    print(f"Loading call graph from {CALL_GRAPH_PATH} ...")
-    with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:
+    print(f"Loading call graph from {call_graph_path} ...")
+    with open(call_graph_path, "r", encoding="utf-8") as f:
         graph = json.load(f)
 
     nodes = graph["nodes"]
@@ -55,28 +67,16 @@ def main(project_folder):
     print(f"Embedding {len(texts)} nodes...")
     embeddings = model.encode(texts, normalize_embeddings=True, show_progress_bar=True)
 
-    np.save(OUTPUT_DIR / "embeddings.npy", embeddings)
+    np.save(output_dir / "embeddings.npy", embeddings)
 
-    with open(OUTPUT_DIR / "embedding_metadata.json", "w", encoding="utf-8") as f:
+    with open(output_dir / "embedding_metadata.json", "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
 
-    index = faiss.IndexFlatIP(EMBEDDING_DIM)
+    index = faiss.IndexFlatIP(embedding_dim)
     embeddings_np = np.asarray(embeddings, dtype=np.float32)
     if embeddings_np.ndim == 1:
         embeddings_np = embeddings_np.reshape(1, -1)
     index.add(embeddings_np)
-    faiss.write_index(index, str(OUTPUT_DIR / "faiss.index"))
+    faiss.write_index(index, str(output_dir / "faiss.index"))
 
-    print(f"✅ Saved embeddings and index to {OUTPUT_DIR}")
-
-
-if __name__ == "__main__":
-    import sys
-    from user_interaction import ask_project_folder
-
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
-    else:
-        folder = ask_project_folder()
-        if folder:
-            main(folder)
+    print(f"✅ Saved embeddings and index to {output_dir}")

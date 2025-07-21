@@ -1,24 +1,19 @@
 import argparse
 import logging
 from pathlib import Path
+import json
 
-from user_interaction import start_event, after_generation_event
-from config import (
-    SETTINGS,
-    reload_settings,
-    DEFAULT_SETTINGS,
-    ensure_example_settings,
-    load_settings,
-)
+from interactive_cli import start_event, after_generation_event
+from config import SETTINGS, reload_settings
+from graph import crawl_directory, build_call_graph, save_graph_json, analyze_graph
+from embedding import generate_embeddings
+from query import main as query_main
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def run_extract(project_path: Path, project_name: str) -> None:
-    """Extract functions and build the call graph."""
-    from LLM_Extreme_Context import crawl_directory, build_call_graph, save_graph_json
-
     logger.info("Crawling source files in %s", project_path)
     entries = crawl_directory(str(project_path), respect_gitignore=True)
     logger.info("Building call graph...")
@@ -31,23 +26,24 @@ def run_extract(project_path: Path, project_name: str) -> None:
 
 
 def run_generate_embeddings(project_name: str) -> None:
-    from generate_embeddings import main as gen_main
-
     logger.info("Generating embeddings for %s", project_name)
-    gen_main(project_name)
+    generate_embeddings(project_name)
 
 
 def run_query(project_name: str, problem: str | None, prompt: str | None) -> None:
-    from query_sniper import main as query_main
-
     logger.info("Launching query tool...")
     query_main(project_name, problem, initial_query=prompt)
 
 
 def run_inspect(project_name: str) -> None:
-    from inspect_graph import main as inspect_main
-
-    inspect_main(project_name)
+    extracted_root = Path(SETTINGS["paths"]["output_dir"])
+    selected = extracted_root / project_name
+    call_graph_path = selected / "call_graph.json"
+    if not call_graph_path.exists():
+        print(f"No call_graph.json found in {selected}.")
+        return
+    data = json.loads(call_graph_path.read_text())
+    analyze_graph(data)
 
 
 def main() -> None:
