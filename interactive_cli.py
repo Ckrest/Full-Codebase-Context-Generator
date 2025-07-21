@@ -39,13 +39,24 @@ def get_prompt_suggestions() -> List[str]:
 
 def start_event(path: Path | None = None) -> tuple[Path, str, str]:
     while not path:
-        p = ask_with_history("Enter path to project directory: ", "project_path")
+        p = ask_with_history(
+            "Enter path to your project folder (absolute or relative). Type 'settings' to configure, or press Enter to cancel:\n> ",
+            "project_path",
+        )
+        if not p:
+            path = None
+            continue
         path = Path(p.strip())
         if not path.exists():
-            print("Path does not exist. Try again or type 'settings'.")
+            print(
+                "❌ That path doesn't exist or isn't accessible. Try again, or type 'settings' to update configuration."
+            )
             path = None
 
-    problem = ask_with_history("What problem are you trying to solve?\n> ", "problem")
+    problem = ask_with_history(
+        "What’s the technical problem you're trying to solve? Be specific — e.g., 'Functions modifying global state unexpectedly'\n> ",
+        "problem",
+    )
 
     llm_model = get_llm_model()
     count = int(SETTINGS.get("query", {}).get("prompt_suggestion_count", 0))
@@ -57,12 +68,18 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
 
 
 def after_generation_event() -> bool:
-    ans = ask_with_history("Start over? [y/N] ", "after_generation").strip().lower()
+    ans = ask_with_history(
+        "🔄 Would you like to run another search from scratch? [y/N] ",
+        "after_generation",
+    ).strip().lower()
     return ans.startswith("y")
 
 
 def ask_problem() -> str:
-    return ask_with_history("What problem are you trying to solve?\n> ", "problem").strip()
+    return ask_with_history(
+        "What’s the technical problem you're trying to solve? Be specific — e.g., 'Functions modifying global state unexpectedly'\n> ",
+        "problem",
+    ).strip()
 
 
 def ask_project_folder() -> str:
@@ -74,14 +91,15 @@ def ask_project_folder() -> str:
 
 def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
     while True:
-        print("\nAvailable query prompts:")
-        print("1) Generate a new prompt suggestion")
-        print("2) Use problem statement")
+        print("\n🎯 How do you want to search the codebase? Choose a prompt:")
+        print(" [1] Generate a new search prompt")
+        print(" [2] Use the full problem statement as-is")
+        print(" [3+] Use one of the suggested prompts below:\n")
         for i, q in enumerate(suggestions, start=3):
-            print(f"{i}) {q}")
+            print(f"  {i}) {q}")
 
         ans = ask_with_history(
-            "What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ",
+            "What prompt should be used to find related code? (type 'exit' to quit, or 'neighbors <n>' to explore related results)\n> ",
             "prompt",
         )
         if ans.isdigit():
@@ -98,7 +116,7 @@ def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
                 return problem
             if 3 <= choice < 3 + len(suggestions):
                 return suggestions[choice - 3]
-            print("Invalid selection.")
+            print("⚠️ Invalid selection. Enter a number from the list, 'exit', or 'neighbors <n>'.")
             continue
         return ans
 
@@ -112,35 +130,34 @@ def change_settings_event() -> None:
     while True:
         print("\nCurrent settings:")
         print(json.dumps(settings, indent=2))
-        field = input("Enter setting path to change (or press Enter to exit): ")
+        field = input(
+            "Enter the setting path you want to change (e.g., query.top_k_results), or press Enter to finish:"
+        )
         if not field:
             break
         keys = field.split(".")
         ref = settings
         for k in keys[:-1]:
             if k not in ref or not isinstance(ref[k], dict):
-                print("Invalid path")
                 break
             ref = ref[k]
         else:
             last = keys[-1]
-            if last not in ref:
-                print("Invalid key")
+            if last in ref:
+                current = ref[last]
+                new_val = input(f"New value for {field} (currently: {current}): ")
+                try:
+                    ref[last] = json.loads(new_val)
+                except json.JSONDecodeError:
+                    ref[last] = new_val
                 continue
-            current = ref[last]
-            new_val = input(f"New value for {field} (current: {current}): ")
-            try:
-                ref[last] = json.loads(new_val)
-            except json.JSONDecodeError:
-                ref[last] = new_val
-            continue
-        print("Path not found. Try again.")
+        print("⚠️ That setting path isn't valid. Use dot notation like 'query.top_k_results'.")
 
     try:
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
             f.write("\n")
     except Exception as e:
-        print(f"Failed to save settings: {e}")
+        print(f"💥 Failed to write settings.json: {e}")
 
     config.reload_settings()
