@@ -11,3 +11,4 @@ pyyaml
 pathspec
 symspellpy
 google-genai
+prompt_toolkit
