@@ -4,8 +4,8 @@ import sys
 
 import faiss
 import numpy as np
-from symspellpy import SymSpell
 from llm_utils import get_llm_model, call_llm, load_embedding_model
+from spellcheck_utils import create_symspell_from_terms, correct_phrase
 
 def get_example_json(n):
     return ",\n  ".join(f'"query suggestion {i+1}"' for i in range(n))
@@ -51,25 +51,6 @@ from summary_formatter import format_summary
 from prompt_builder import build_prompt
 from config import SETTINGS
 
-def build_symspell(metadata):
-    """Builds a SymSpell dictionary for spell correction."""
-    sym = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
-    print("Building spellcheck dictionary...")
-    for item in metadata:
-        name = item.get("name", "")
-        for token in str(name).split():
-            sym.create_dictionary_entry(token, 1)
-    return sym
-
-
-def correct_query(symspell, query: str) -> str:
-    """Corrects the query using the SymSpell dictionary."""
-    if not symspell:
-        return query
-    suggestions = symspell.lookup_compound(query, max_edit_distance=2)
-    if suggestions:
-        return suggestions[0].term
-    return query
 
 
 def average_embeddings(model, texts) -> np.ndarray:
@@ -138,7 +119,8 @@ def main(project_folder, problem=None, initial_query=None):
     # --- Optional Tools Initialization ---
     symspell = None
     if SETTINGS["query"].get("use_spellcheck"):
-        symspell = build_symspell(metadata)
+        names = [item.get("name") for item in metadata if "name" in item]
+        symspell = create_symspell_from_terms(names)
 
     sub_question_count = int(SETTINGS["query"].get("sub_question_count", 0))
     use_sub_questions = sub_question_count > 0
@@ -182,7 +164,7 @@ def main(project_folder, problem=None, initial_query=None):
             print()
             return last_indices
 
-        queries = [correct_query(symspell, query)]
+        queries = [correct_phrase(symspell, query)]
         sub_queries = []
         if use_sub_questions and llm_model:
             print("Generating sub-queries...")
@@ -203,7 +185,7 @@ def main(project_folder, problem=None, initial_query=None):
                 sub_queries.append(t)
             if sub_queries:
                 sub_queries = sub_queries[:sub_question_count]
-                queries.extend(correct_query(symspell, q) for q in sub_queries)
+                queries.extend(correct_phrase(symspell, q) for q in sub_queries)
         elif use_sub_questions:
             print("Sub-question generation skipped because no LLM model was available.")
 
