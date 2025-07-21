@@ -80,7 +80,7 @@ python Start.py query my_project --problem "bug" --prompt "search term"
 python Start.py inspect my_project
 ```
 
-Running `Start.py` with just a path enters an interactive loop. While querying you can type `neighbors <n>` to see the graph neighbors of result `n` from the previous search. Interactive prompts are stored in `.full_context_history.json`.
+Running `Start.py` with just a path enters an interactive loop. While querying you can type `neighbors <n>` to see the graph neighbors of result `n` from the previous search. Interactive prompts are stored in `.full_context_history.json`. Command line history for the up-arrow key is persisted in `.full_context_readline`.
 
 ### Spellcheck and Sub-Queries
 
