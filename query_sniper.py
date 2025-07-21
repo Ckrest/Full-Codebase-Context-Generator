@@ -151,7 +151,7 @@ def main(project_folder, problem=None):
     RESULTS_FILE = BASE_DIR / "results.txt"
 
     if problem is None:
-        problem = input("\ud83c\udfaf What problem are you trying to solve?\n> ").strip()
+        problem = input("What problem are you trying to solve?\n> ").strip()
 
     suggestion_count = int(SETTINGS["query"].get("prompt_suggestion_count", 0))
     suggestions = generate_prompt_suggestions(problem, suggestion_count, llm_model)
@@ -165,7 +165,7 @@ def main(project_folder, problem=None):
         for i, q in enumerate(suggestions, start=3):
             print(f"{i}) {q}")
 
-        user_in = input("\ud83d\udd0d What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ")
+        user_in = input("What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ")
         if user_in.strip().lower() in {"exit", "quit"}:
             print("👋 Exiting.")
             break

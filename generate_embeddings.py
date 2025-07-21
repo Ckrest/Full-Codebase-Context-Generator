@@ -10,7 +10,6 @@ from Start import SETTINGS
 def main(project_folder):
     CALL_GRAPH_PATH = Path(SETTINGS["paths"]["output_dir"]) / project_folder / "call_graph.json"
     OUTPUT_DIR = Path(SETTINGS["paths"]["output_dir"]) / project_folder
-    EMBEDDING_DIM = SETTINGS["embedding"]["embedding_dim"]
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
 
     print("Loading embedding model...")
@@ -21,6 +20,9 @@ def main(project_folder):
         model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
     else:
         model = SentenceTransformer(model_path)
+
+    EMBEDDING_DIM = model.get_sentence_embedding_dimension()
+    print(f"Detected embedding dimension: {EMBEDDING_DIM}")
 
     print(f"Loading call graph from {CALL_GRAPH_PATH} ...")
     with open(CALL_GRAPH_PATH, "r", encoding="utf-8") as f:

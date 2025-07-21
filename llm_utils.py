@@ -20,11 +20,11 @@ def get_llm_model():
     if local_path:
         print(f"⚠️ Local LLM path '{local_path}' provided but loading is not implemented.")
         return None
-    print("🔑 Please set your Gemini API key in settings.json. See https://ai.google.dev/gemini-api")
+    print("🔑 Please set your Gemini API key in settings.json. Free as of 7-21-2025 See https://ai.google.dev/gemini-api")
     return None
 
 
-def call_llm(client, prompt_text, temperature=None, max_tokens=None):
+def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None):
     """Send ``prompt_text`` to the provided LLM client."""
     if not client:
         return "❌ Generative model client not initialized."
@@ -38,14 +38,15 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None):
 
     try:
         response = client.models.generate_content(
-            model='gemini-pro',
+            model='gemini-2.5-pro',
             contents=prompt_text,
             generation_config={
                 "temperature": temperature,
-                "top_p": top_p,
                 "max_output_tokens": max_tokens,
-            },
+                "top_p": top_p,
+            }
         )
+        print(response.text)
         return response.text.strip()
     except Exception as e:
         return f"💥 Gemini query failed: {e}"

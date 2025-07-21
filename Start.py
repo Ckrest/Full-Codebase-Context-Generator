@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import argparse
 import logging
@@ -6,25 +7,6 @@ from pathlib import Path
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def sanitize_paths(data: dict) -> None:
-    """Replace backslashes in any path-like string values."""
-    for key, value in data.items():
-        if isinstance(value, dict):
-            sanitize_paths(value)
-        elif isinstance(value, str) and (
-            "path" in key.lower() 
-            or "dir" in key.lower() 
-            or key.lower().endswith("_root")
-            or "model" in key.lower()
-            or key.lower().startswith("output")
-            or any(keyword in key.lower() for keyword in ["folder", "file", "location", "destination"])
-        ):
-            # Only sanitize if it looks like a file path (contains backslashes or drive letters)
-            if "\\" in value or (len(value) > 1 and value[1] == ":"):
-                data[key] = value.replace("\\", "/")
-
 
 # Default configuration used by all tools
 DEFAULT_SETTINGS = {
@@ -118,7 +100,6 @@ def ensure_example_settings():
             current = {}
 
     if current != template:
-        sanitize_paths(template)
         with open(example_path, "w", encoding="utf-8") as f:
             json.dump(template, f, indent=2)
             f.write("\n")
@@ -126,33 +107,69 @@ def ensure_example_settings():
 
 
 def load_settings():
-    """Load settings from ``settings.json`` and ensure all keys are present.
-
-    If the file is missing it will be created using ``DEFAULT_SETTINGS``. When
-    an existing file is missing keys, those defaults are added only in memory –
-    the file on disk is left untouched. The ``settings.example.json`` file is
-    always kept in sync with ``DEFAULT_SETTINGS``.
     """
+    Load settings from `settings.json`, fixing common path formatting errors if needed.
 
+    If the file is missing, it's created with defaults. If it fails to load due
+    to a JSON error (often from unescaped backslashes in Windows paths), this
+    function will attempt to fix the paths in the raw text and reload.
+    """
     ensure_example_settings()
 
     settings_path = "settings.json"
+    settings = {}
+
     if os.path.exists(settings_path):
         try:
             with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
+                logger.info("Successfully loaded settings.json")
         except (json.JSONDecodeError, IOError) as e:
-            logger.warning(
-                f"Could not load settings.json: {e}. Using defaults."
-            )
-            settings = {}
+            try:
+                with open(settings_path, "r", encoding="utf-8") as f_read:
+                    content = f_read.read()
+
+                # This regex finds key-value pairs where the key suggests a path,
+                # allowing us to surgically fix path strings without corrupting other data.
+                path_pattern = re.compile(
+                    r'('
+                    # Group 1: The key and opening quote of the value, e.g., '"output_dir": "'
+                    r'"(?:[a-zA-Z0-9_]*_)?(?:path|dir|root|model|output|folder|file|location|destination)(?:_[a-zA-Z0-9_]*)?"'
+                    r'\s*:\s*"'
+                    r')'
+                    # Group 2: The value itself, containing the path.
+                    r'([^"]*)'
+                    # Group 3: The closing quote.
+                    r'(")'
+                )
+
+                def path_replacer(match):
+                    """Normalizes path separators to be valid in JSON."""
+                    pre_value, path_value, post_value = match.groups()
+                    # Normalize all path separators to a single forward slash first.
+                    normalized = path_value.replace('\\\\', '/').replace('\\', '/')
+                    # Convert all forward slashes to double backslashes for JSON.
+                    fixed_path = normalized.replace('/', '\\\\')
+                    return f'{pre_value}{fixed_path}{post_value}'
+
+                fixed_content = path_pattern.sub(path_replacer, content)
+
+                settings = json.loads(fixed_content)
+                logger.info("Successfully loaded settings.json after auto-fixing paths.")
+
+            except (json.JSONDecodeError, IOError) as e2:
+                logger.error(
+                    f"Failed to load settings.json even after attempting to fix paths: {e2}. "
+                    "Please check the file for syntax errors. Using defaults."
+                )
+                settings = {}  # Fallback to empty dict
     else:
         logger.info("settings.json not found. Creating one with default settings.")
         settings = json.loads(json.dumps(DEFAULT_SETTINGS))
-        sanitize_paths(settings)
         try:
             with open(settings_path, "w", encoding="utf-8") as f:
                 json.dump(settings, f, indent=2)
+                f.write("\n")
         except IOError as e:
             logger.warning(f"Failed to write settings.json: {e}")
 
@@ -229,7 +246,7 @@ def main():
         parser.error(f"Path '{project_path}' does not exist")
 
     project_name = project_path.name
-    problem = input("\ud83c\udfaf What problem are you trying to solve?\n> ").strip()
+    problem = input("What problem are you trying to solve?\n> ").strip()
     SETTINGS["default_project"] = project_name
     SETTINGS["project_root"] = str(project_path.resolve())
 
