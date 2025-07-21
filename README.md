@@ -60,27 +60,30 @@ callees. Set it to `False` to only follow outgoing calls.
 
 ### Files
 
- - `LLM_Extreme_Context.py`: Extracts Python, HTML, Markdown, and JavaScript using tree-sitter
- - `Start.py`: Unified CLI with `extract`, `embed`, `query`, and `inspect` commands
-- `generate_embeddings.py`: Generate embeddings from call graph
-- `query_sniper.py`: Interactive query interface
-- `inspect_graph.py`: Graph analysis and visualization
+ - `main.py`: Unified CLI and interactive workflow
+ - `graph.py`: Source extraction and call graph helpers
+ - `embedding.py`: Generates embeddings and FAISS index
+ - `query.py`: Runs searches and prepares prompts
+ - `prompt_builder.py`: Formats results for the LLM
+ - `llm.py`: Gemini API helpers
+ - `interactive_cli.py`: PromptToolkit-based input dialogs
+ - `config.py`: Loads and saves settings
 - `settings.json`: Your local configuration (not tracked by git)
 - `settings.example.json`: Template configuration file
 
 ## Usage
 
 The `settings.json` file is automatically loaded by all scripts. If the file doesn't exist, it will be generated with defaults the first time you run the tools.
-Invoke the CLI with `python Start.py <command>`:
+Invoke the CLI with `python main.py <command>`:
 
 ```bash
-python Start.py extract /path/to/project
-python Start.py embed my_project
-python Start.py query my_project --problem "bug" --prompt "search term"
-python Start.py inspect my_project
+python main.py extract /path/to/project
+python main.py embed my_project
+python main.py query my_project --problem "bug" --prompt "search term"
+python main.py inspect my_project
 ```
 
-Running `Start.py` with just a path enters an interactive loop. While querying you can type `neighbors <n>` to see the graph neighbors of result `n` from the previous search. Interactive prompts use **prompt_toolkit** with per-prompt history saved under `~/.full_context_history/`.
+Running `main.py` without arguments starts an interactive loop. It will prompt for the project path, problem statement, and search query. Use the up/down arrows to recall previous answers. During querying you can type `neighbors <n>` to see the graph neighbors of result `n`. Prompt history is saved under `~/.full_context_history/`.
 
 ### Spellcheck and Sub-Queries
 

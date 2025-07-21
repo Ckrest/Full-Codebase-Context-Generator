@@ -8,46 +8,49 @@ those embeddings. The main scripts are located in the repository root.
 
 | File | Description |
 | ---- | ----------- |
-| `LLM_Extreme_Context.py` | Extracts functions from Python, HTML, Markdown, and JavaScript (via tree-sitter) then builds the call graph. |
-| `context_utils.py` | Utility helpers for loading graphs and gathering context around nodes. |
-| `generate_embeddings.py` | Generates embeddings for call graph nodes using `sentence-transformers` and FAISS. |
-| `query_sniper.py` | Interactive CLI to search embeddings and explore neighboring nodes. |
-| `inspect_graph.py` | Basic analysis/visualization of the generated call graph. |
-| `Start.py` | Unified CLI providing `extract`, `embed`, `query`, and `inspect` commands. |
+| `main.py` | Unified CLI with `extract`, `embed`, `query`, and interactive modes. |
+| `graph.py` | Extraction utilities and call graph helpers. |
+| `embedding.py` | Generates embeddings and FAISS indices. |
+| `query.py` | Searches embeddings and builds prompts for the LLM. |
+| `prompt_builder.py` | Formats search results and function summaries. |
+| `llm.py` | Helper routines for calling the Gemini API. |
+| `interactive_cli.py` | PromptToolkit dialogs for the interactive workflow. |
+| `config.py` | Loads and stores project settings. |
 
 ## Function Relationships
 
-1. **Extraction** – `LLM_Extreme_Context.extract_from_python`,
+1. **Extraction** – `graph.extract_from_python`,
    `extract_from_html`, `extract_from_markdown`, and
    `extract_from_javascript` parse files and return a
    list of entries. `build_call_graph` then creates a `networkx` graph from
    these entries and `save_graph_json` writes it to disk.
-2. **Context Gathering** – `context_utils.gather_context` uses
-   `expand_graph` to collect code from surrounding nodes in a graph. Direction
-   can be controlled with the `bidirectional` setting.
-3. **Embedding Generation** – `generate_embeddings.main` loads the call graph,
-   gathers context for each node, encodes the text with
+2. **Context Gathering** – `graph.gather_context` collects code from related
+   nodes using `expand_graph`. Direction can be controlled with the
+   `bidirectional` setting.
+3. **Embedding Generation** – `embedding.generate_embeddings` loads the call
+   graph, gathers context for each node, encodes the text with a
    `SentenceTransformer`, and saves a FAISS index.
-4. **Querying** – `query_sniper.main` loads the embeddings and lets users run
-   similarity searches. It can also show neighbors using
-   `expand_graph`.
-5. **Inspection** – `inspect_graph.main` analyzes the call graph (e.g., node
-   degree) and can plot distributions.
+4. **Querying** – `query.main` searches the embeddings, builds prompts via
+   `prompt_builder.format_summary` and optionally calls an LLM.
+5. **Inspection** – `graph.analyze_graph` prints basic statistics on the
+   generated call graph.
 
-The `Start.py` module orchestrates these utilities via command line.
+The `main.py` script orchestrates these utilities via command line or interactive mode.
 
 ### Usage Notes
 
-Run `python Start.py <command>` where `<command>` is one of:
+Run `python main.py <command>` where `<command>` is one of:
 
 - `extract` – build a call graph for a project
 - `embed` – generate embeddings from a call graph
 - `query` – search the embeddings interactively
 - `inspect` – print basic graph statistics
 
-Running `Start.py` with just a path starts the interactive workflow. Command
+Running `main.py` without a command launches the interactive workflow. Command
 history is stored in the `~/.full_context_history/` directory via
 `prompt_toolkit`.
+The interactive search can optionally correct queries using SymSpell when
+`use_spellcheck` is set to `true` in `settings.json`.
 
 ### Debugging
 
