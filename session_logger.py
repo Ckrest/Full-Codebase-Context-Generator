@@ -1,0 +1,68 @@
+import json
+from pathlib import Path
+from datetime import datetime
+import re
+
+
+def slugify(text: str) -> str:
+    """Convert text to a simple slug usable in file names."""
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text)
+    return text.strip("_") or "query"
+
+
+def get_timestamp() -> str:
+    """Return a UTC timestamp suitable for file names."""
+    return datetime.utcnow().strftime("%Y-%m-%dT%H%MZ")
+
+
+def log_session_to_json(data: dict, path: str) -> str:
+    """Write session data to ``path`` in JSON format and return file path."""
+    logs = Path(path)
+    logs.mkdir(parents=True, exist_ok=True)
+    fname = f"{get_timestamp()}_{slugify(data.get('original_query', 'query'))}.json"
+    full_path = logs / fname
+    with open(full_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    return str(full_path)
+
+
+def log_summary_to_markdown(data: dict, path: str) -> str:
+    """Write a human-readable summary of ``data`` to ``path`` and return file path."""
+    logs = Path(path)
+    logs.mkdir(parents=True, exist_ok=True)
+    fname = f"{get_timestamp()}_{slugify(data.get('original_query', 'query'))}.md"
+    full_path = logs / fname
+
+    subqueries = data.get("subqueries", [])
+    functions = data.get("functions", {})
+
+    total_sub = len(subqueries)
+    unique_funcs = len(functions)
+    core_hits = sum(1 for f in functions.values() if len(f.get("subqueries", [])) == total_sub)
+    unique_hits = sum(1 for f in functions.values() if len(f.get("subqueries", [])) == 1)
+
+    lines = [
+        f"# Query Summary",
+        "",
+        f"Original Query: {data.get('original_query','')}",
+        "",
+        f"Total subqueries: {total_sub}",
+        f"Total unique functions: {unique_funcs}",
+        f"Number of core hits: {core_hits}",
+        f"Number of unique hits: {unique_hits}",
+        "",
+        "## Subquery Results",
+    ]
+
+    for i, sq in enumerate(subqueries, start=1):
+        lines.append("")
+        lines.append(f"### {i}. {sq.get('text','')}")
+        for fn in sq.get("functions", []):
+            lines.append(f"- {fn['name']} ({fn['file']}, score {fn['score']:.3f}, rank {fn['rank']})")
+
+    with open(full_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    return str(full_path)
