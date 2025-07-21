@@ -79,6 +79,30 @@ def after_generation_event() -> bool:
     return ans.startswith("y")
 
 
+def ask_problem() -> str:
+    """Ask the user for the problem statement."""
+
+    return ask_with_history("What problem are you trying to solve?\n> ", "problem").strip()
+
+
+def ask_project_folder() -> str:
+    """Ask for a project folder relative to ``output_dir``."""
+
+    return ask_with_history(
+        "Enter the project folder to analyze (relative to output_dir): ",
+        "project_folder",
+    ).strip()
+
+
+def ask_search_prompt() -> str:
+    """Prompt for the query used to find related functions."""
+
+    return ask_with_history(
+        "What prompt should be used to find related functions? (type 'exit' or 'neighbors <n>')\n> ",
+        "prompt",
+    )
+
+
 def change_settings_event() -> None:
     """Interactively change values in ``settings.json``."""
 

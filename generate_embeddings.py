@@ -78,9 +78,11 @@ def main(project_folder):
 
 if __name__ == "__main__":
     import sys
+    from user_interaction import ask_project_folder
+
     if len(sys.argv) > 1:
         main(sys.argv[1])
     else:
-        folder = input("Enter the project folder to analyze (relative to output_dir): ").strip()
+        folder = ask_project_folder()
         if folder:
             main(folder)
