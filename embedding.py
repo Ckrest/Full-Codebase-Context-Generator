@@ -69,8 +69,10 @@ def generate_embeddings(project_folder: str) -> None:
 
     np.save(output_dir / "embeddings.npy", embeddings)
 
-    with open(output_dir / "embedding_metadata.json", "w", encoding="utf-8") as f:
+    meta_file = output_dir / "embedding_metadata.json"
+    with open(meta_file, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2)
+    print(f"🗃 Output saved to: {meta_file}")
 
     index = faiss.IndexFlatIP(embedding_dim)
     embeddings_np = np.asarray(embeddings, dtype=np.float32)

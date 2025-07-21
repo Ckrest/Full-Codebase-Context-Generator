@@ -21,9 +21,11 @@ def format_summary(
     base_dir: Optional[str] = None,
 ) -> str:
     """Return formatted summaries for the selected functions."""
+    idx_list = list(indices)
+    total = len(idx_list)
     blocks: list[str] = []
     blocks_full: list[str] = []
-    for idx in indices:
+    for pos, idx in enumerate(idx_list, start=1):
         meta = metadata[idx]
         node = node_map.get(meta.get("id"), {})
 
@@ -41,17 +43,20 @@ def format_summary(
         comments = node.get("comments", [])[:5]
         calls = [node_map.get(cid, {}).get("name", cid) for cid in node.get("calls", [])]
         called_by = [node_map.get(cid, {}).get("name", cid) for cid in node.get("called_by", [])]
-        code = _truncate_code(node.get("code", ""))
+        full_code = node.get("code", "")
+        lines = full_code.splitlines()
+        truncated = len(lines) > 40
+        code = _truncate_code(full_code)
 
         block_lines = [
-            "=" * 40,
-            f"Function: {name}",
-            f"File: {display_path}",
-            f"Language: {lang}",
-            f"Estimated Tokens: {tokens}",
-            "",
-            "Comments:",
+            f"======= [{pos} of {total}] =======",
+            f"Function: {name} | File: {display_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
         ]
+        if tokens > 1000:
+            block_lines.append(
+                f"⚠️ Warning: function may be too large to analyze effectively (est. {tokens})"
+            )
+        block_lines += ["", "Comments:"]
         for c in comments:
             block_lines.append(f"  - {c}")
         if not comments:
@@ -74,18 +79,20 @@ def format_summary(
         block_lines.append("")
         block_lines.append("Code:")
         block_lines.append(code)
+        if truncated:
+            block_lines.append("📏 Code truncated to first/last 20 lines")
         block_lines.append("=" * 40)
         blocks.append("\n".join(block_lines))
 
         block_full = [
-            "=" * 40,
-            f"Function: {name}",
-            f"File: {file_path}",
-            f"Language: {lang}",
-            f"Estimated Tokens: {tokens}",
-            "",
-            "Comments:",
+            f"======= [{pos} of {total}] =======",
+            f"Function: {name} | File: {file_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
         ]
+        if tokens > 1000:
+            block_full.append(
+                f"⚠️ Warning: function may be too large to analyze effectively (est. {tokens})"
+            )
+        block_full += ["", "Comments:"]
         for c in comments:
             block_full.append(f"  - {c}")
         if not comments:
@@ -105,6 +112,8 @@ def format_summary(
         block_full.append("")
         block_full.append("Code:")
         block_full.append(code)
+        if truncated:
+            block_full.append("📏 Code truncated to first/last 20 lines")
         block_full.append("=" * 40)
         blocks_full.append("\n".join(block_full))
 
@@ -112,6 +121,7 @@ def format_summary(
     if save_path:
         with open(save_path, "w", encoding="utf-8") as f:
             f.write("\n".join(blocks_full))
+        print(f"🗃 Output saved to: {save_path}")
     return output
 
 
@@ -186,4 +196,5 @@ def build_prompt(metadata_path, graph_path, indices, user_question, base_dir=Non
     result = "\n\n".join(blocks)
     if save_path:
         Path(save_path).write_text("\n\n".join(blocks_full), encoding="utf-8")
+        print(f"🗃 Output saved to: {save_path}")
     return result
