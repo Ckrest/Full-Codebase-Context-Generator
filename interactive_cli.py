@@ -101,12 +101,11 @@ def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
         print("\n🎯 How do you want to search the codebase? Choose an option:")
         print("  [1] Generate a new search prompt")
         print("  [2] Use your full problem statement")
-        print("  [3] Use one of the suggested prompts below:")
         for i, q in enumerate(suggestions, start=3):
-            print(f"    {i}) {q}")
+            print(f"  [{i}] {q}")
 
         ans = ask_with_history(
-            "Select an option or type 'exit' / 'neighbors <n>':",
+            "Type a prompt or a number:",
             "prompt",
         )
         if ans.isdigit():
