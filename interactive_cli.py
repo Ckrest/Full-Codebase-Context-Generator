@@ -127,8 +127,8 @@ def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
                         print("[✔ Done]")
                         print(f"Generated prompt: {new_q}")
                         suggestions.append(new_q)
-                        return new_q
-                    print("[❌ Failed]")
+                    else:
+                        print("[❌ Failed]")
                 except Exception:
                     print("[❌ Failed]")
                 continue
