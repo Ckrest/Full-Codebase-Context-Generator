@@ -93,9 +93,11 @@ def main() -> None:
 
     reload_settings()
 
+    visualize_cfg = SETTINGS.get("visualization", {}).get("auto_visualize", False)
+
     if args.cmd == "extract":
         path = Path(args.path).resolve()
-        run_extract(path, path.name, visualize=args.visualize)
+        run_extract(path, path.name, visualize=args.visualize or visualize_cfg)
         return
     if args.cmd == "embed":
         run_generate_embeddings(args.project)
@@ -130,7 +132,7 @@ def main() -> None:
 
         if not call_graph_path.exists():
             logger.info("Extracting project and building call graph...")
-            run_extract(project_path, project_name)
+            run_extract(project_path, project_name, visualize=visualize_cfg)
         else:
             logger.info("Using existing call graph at %s", call_graph_path)
 

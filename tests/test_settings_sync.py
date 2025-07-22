@@ -20,3 +20,8 @@ def test_api_settings_defaults():
     assert api["max_output_tokens"] == 5000
     assert api["temperature"] == 0.6
 
+
+def test_visualization_auto_setting():
+    vis = DEFAULT_SETTINGS["visualization"]
+    assert vis["auto_visualize"] is False
+

@@ -86,6 +86,7 @@ DEFAULT_SETTINGS = {
         "node_size": 1500,
         "font_size": 8,
         "node_color": "skyblue",
+        "auto_visualize": False,
     },
     "embedding": {
         "embedding_dim": 384,
