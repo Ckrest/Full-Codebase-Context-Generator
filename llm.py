@@ -1,7 +1,5 @@
-from google import genai
-from google.genai import types
-from sentence_transformers import SentenceTransformer
 from config import SETTINGS
+from lazy_loader import lazy_import
 import json
 
 
@@ -57,7 +55,7 @@ def get_llm_model():
     if api_key:
         if api_type != "gemini":
             raise ValueError(f"Unsupported API type: {api_type}")
-        # Using Client for more versatile use cases like file uploads
+        genai = lazy_import("google.generativeai")
         client = genai.Client(api_key=api_key)
         return client
     if local_path:
@@ -82,6 +80,7 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
         max_tokens = api_cfg.get("max_output_tokens", 5000)
     top_p = api_cfg.get("top_p", 1.0)
 
+    types = lazy_import("google.generativeai.types")
     try:
         response = client.models.generate_content(
             model="gemini-2.5-pro",

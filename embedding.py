@@ -1,16 +1,13 @@
 import json
 from pathlib import Path
-import numpy as np
-import faiss
-from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
-
 from config import SETTINGS
-from graph import gather_context
+from lazy_loader import lazy_import
 
 
 def load_embedding_model(model_path: str | None):
     """Load a ``SentenceTransformer`` model or download a default."""
+    model_lib = lazy_import("sentence_transformers")
+    SentenceTransformer = model_lib.SentenceTransformer
     if not model_path:
         print(
             "encoder_model_path is not set; downloading 'sentence-transformers/all-MiniLM-L6-v2'"
@@ -44,10 +41,16 @@ def generate_embeddings(project_folder: str) -> None:
     out_w = SETTINGS["context"].get("outbound_weight", 1.0)
     in_w = SETTINGS["context"].get("inbound_weight", 1.0)
 
+    graph_mod = lazy_import("graph")
+    np = lazy_import("numpy")
+    faiss = lazy_import("faiss")
+    tqdm_mod = lazy_import("tqdm")
+    tqdm = tqdm_mod.tqdm
+
     print("Encoding function nodes...")
     for node in tqdm(nodes, desc="Gathering context", unit="node"):
         name = node.get("name", "")
-        context = gather_context(
+        context = graph_mod.gather_context(
             graph,
             node["id"],
             depth=depth,
