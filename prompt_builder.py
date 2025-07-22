@@ -219,3 +219,15 @@ def build_prompt(
         Path(save_path).write_text("\n\n".join(blocks_full), encoding="utf-8")
         print(f"🗃 Output saved to: {save_path}")
     return result
+
+
+def build_json_prompt(function_objects, user_question, save_path=None):
+    data = {
+        "question": user_question,
+        "functions": function_objects,
+    }
+    text = json.dumps(data, indent=2)
+    if save_path:
+        with open(save_path, "w", encoding="utf-8") as f:
+            f.write(text)
+    return text
