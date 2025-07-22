@@ -8,7 +8,7 @@ from llm import get_llm_model, call_llm, PROMPT_GEN_TEMPLATE, PROMPT_NEW_QUERY, 
 from workspace import DataWorkspace, QuerySession
 from spellcheck_utils import create_symspell_from_terms, correct_phrase
 from graph import expand_graph
-from prompt_builder import build_prompt, format_summary
+from prompt_builder import build_json_prompt, format_summary
 from config import SETTINGS
 from session_logger import (
     log_session_to_json,
@@ -285,6 +285,59 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             if len(subquery_data) > 1:
                 print(f"Matched Query: {best_text}")
 
+        relevance = aggregate_scores(function_index)
+
+        full_function_objects = []
+        for idx in final_indices:
+            meta = metadata[idx]
+            node = node_map.get(meta.get("id"), {})
+            name = node.get("name", meta.get("name"))
+            score_info = relevance.get(name, {})
+
+            callers = []
+            for edge in graph.get("edges", []):
+                if edge.get("to") == node.get("id"):
+                    cid = edge.get("from")
+                    caller_node = node_map.get(cid, {})
+                    callers.append({
+                        "function": caller_node.get("name", cid.split("::")[-1]),
+                        "file": caller_node.get("file_path"),
+                        "count": edge.get("weight", 1),
+                    })
+
+            callees = []
+            for edge in graph.get("edges", []):
+                if edge.get("from") == node.get("id"):
+                    cid = edge.get("to")
+                    callee_node = node_map.get(cid, {})
+                    callees.append({
+                        "function": callee_node.get("name", cid.split("::")[-1]),
+                        "file": callee_node.get("file_path"),
+                        "count": edge.get("weight", 1),
+                    })
+
+            full_function_objects.append({
+                "function_name": name,
+                "file": node.get("file_path", meta.get("file")),
+                "class": node.get("class"),
+                "relevance_scores": score_info,
+                "call_relations": {
+                    "callers": callers,
+                    "callees": callees,
+                },
+                "call_graph_role": node.get("call_graph_role"),
+                "parameters": node.get("parameters", {}),
+                "comment": node.get("docstring") or (node.get("comments") or [""])[0],
+                "code": node.get("code", ""),
+            })
+
+        print("\n🎯 Function Summary:")
+        for func in full_function_objects:
+            name = func["function_name"]
+            score = func.get("relevance_scores", {}).get("avg_score", 0.0)
+            role = func.get("call_graph_role", "unknown")
+            print(f"- {name} | Score: {score:.3f} | Role: {role}")
+
         summary = format_summary(
             final_indices,
             metadata,
@@ -308,14 +361,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
         print("[⏳ Working...] Generating final prompt")
         try:
-            prompt_text = build_prompt(
-                metadata_path,
-                call_graph_path,
-                [int(i) for i in final_indices],
+            prompt_text = build_json_prompt(
+                full_function_objects,
                 problem,
-                base_dir=SETTINGS.get("project_root"),
-                save_path=str(base_dir / "initial_prompt.txt"),
-                workspace=workspace,
+                save_path=str(base_dir / "initial_prompt.json"),
             )
             print("[✔ Done]")
         except Exception:
@@ -341,8 +390,6 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         else:
             print("Skipping LLM query as the model is not available.")
             final_context = ""
-
-        relevance = aggregate_scores(function_index)
 
         functions_list = []
         for name, scores in relevance.items():
