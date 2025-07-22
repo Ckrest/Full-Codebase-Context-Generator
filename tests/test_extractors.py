@@ -220,11 +220,13 @@ def test_crawl_directory_extensions_and_gitignore(tmp_path):
     (tmp_path / "a.py").write_text("def foo():\n    pass\n")
     (tmp_path / "config.json").write_text("{\"a\": 1}")
     (tmp_path / "README.md").write_text("# hi")
+    (tmp_path / "style.css").write_text("body {}")
+    (tmp_path / "app.tsx").write_text("export const App = () => {};\n")
     (tmp_path / "ignore.yml").write_text("a: b")
     (tmp_path / ".gitignore").write_text("ignore.yml\n")
 
     entries = lec.crawl_directory(str(tmp_path))
     processed = {Path(e["file_path"]).name for e in entries}
 
-    assert {"a.py", "config.json", "README.md"} <= processed
+    assert {"a.py", "config.json", "README.md", "style.css", "app.tsx"} <= processed
     assert "ignore.yml" not in processed

@@ -466,13 +466,22 @@ def extract_from_txt(filepath: str) -> List[Dict]:
 EXTENSION_MAP = {
     ".py": extract_from_python,
     ".js": extract_from_javascript,
+    ".mjs": extract_from_javascript,
+    ".cjs": extract_from_javascript,
     ".ts": extract_from_typescript,
+    ".tsx": extract_from_typescript,
     ".html": extract_from_html,
     ".htm": extract_from_html,
     ".md": extract_from_markdown,
     ".json": extract_from_json,
     ".yaml": extract_from_yaml,
     ".yml": extract_from_yaml,
+    ".css": extract_from_txt,
+    ".scss": extract_from_txt,
+    ".less": extract_from_txt,
+    ".vue": extract_from_txt,
+    ".svelte": extract_from_txt,
+    ".svg": extract_from_txt,
     ".txt": extract_from_txt,
 }
 SKIPPED_LOG: List[Dict] = []
