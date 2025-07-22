@@ -13,6 +13,8 @@ DEFAULT_SETTINGS = {
         "api_key": "",
         "api_type": "gemini",
         "local_path": "",
+        "model_type": "auto",
+        "device": "auto",
     },
     "api_settings": {
         "temperature": 0.6,

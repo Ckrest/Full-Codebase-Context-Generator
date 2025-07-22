@@ -1,6 +1,7 @@
 from config import SETTINGS
 from lazy_loader import lazy_import
 import json
+from dataclasses import dataclass
 
 
 def get_example_json(n: int) -> str:
@@ -45,12 +46,54 @@ Respond only with the query string.
 
 # Only Gemini is supported right now
 
+
+@dataclass
+class LocalLLM:
+    """Simple wrapper for a local HuggingFace language model."""
+
+    model: object
+    tokenizer: object
+    device: str = "cpu"
+
+    def generate(self, text: str, *, temperature: float, max_tokens: int, top_p: float) -> str:
+        """Generate text using the local model."""
+        torch = lazy_import("torch")
+        inputs = self.tokenizer(text, return_tensors="pt")
+        for k, v in inputs.items():
+            inputs[k] = v.to(self.device)
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                do_sample=temperature > 0,
+                temperature=temperature,
+                max_new_tokens=max_tokens,
+                top_p=top_p,
+            )
+        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+
 def get_llm_model():
     """Load the LLM client based on settings. Defaults to the Gemini API."""
     cfg = SETTINGS.get("LLM_model", {})
     api_key = cfg.get("api_key", "")
     api_type = cfg.get("api_type", "gemini").lower()
     local_path = cfg.get("local_path", "")
+    model_type = cfg.get("model_type", "auto")
+    device = cfg.get("device", "auto")
+
+    if local_path:
+        transformers = lazy_import("transformers")
+        tokenizer = transformers.AutoTokenizer.from_pretrained(local_path)
+        if model_type == "auto":
+            model_cls = transformers.AutoModelForCausalLM
+        else:
+            model_cls = getattr(transformers, model_type)
+        model = model_cls.from_pretrained(local_path)
+        torch = lazy_import("torch")
+        if device == "auto":
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+        model.to(device)
+        model.eval()
+        return LocalLLM(model=model, tokenizer=tokenizer, device=device)
 
     if api_key:
         if api_type != "gemini":
@@ -58,18 +101,17 @@ def get_llm_model():
         genai = lazy_import("google.genai")
         client = genai.Client(api_key=api_key)
         return client
-    if local_path:
-        print(f"⚠️ Local LLM path '{local_path}' provided but loading is not implemented.")
-        return None
     print("🔑 Please set your Gemini API key in settings.json. Free as of 7-21-2025 See https://ai.google.dev/gemini-api")
     return None
 
 
-def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None):
+def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None, instruction=None):
     """Send ``prompt_text`` to the provided LLM client.
 
     A short system instruction is sent with every request to
-    encourage the model to follow the prompts.
+    encourage the model to follow the prompts. For local models that do not
+    support a separate instruction field, the instruction is prepended to the
+    prompt text.
     """
     if not client:
         return "❌ Generative model client not initialized."
@@ -84,7 +126,20 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
         max_tokens = api_cfg.get("max_output_tokens", 5000)
     top_p = api_cfg.get("top_p", 1.0)
 
-    instruction = "Your job is to process and format data."
+    instruction = instruction or "Your job is to process and format data."
+
+    if isinstance(client, LocalLLM):
+        if instruction:
+            prompt_text = instruction + "\n" + prompt_text
+        try:
+            return client.generate(
+                prompt_text,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                top_p=top_p,
+            ).strip()
+        except Exception as e:
+            return f"💥 Local LLM query failed: {e}"
 
     types = lazy_import("google.genai.types")
     try:
