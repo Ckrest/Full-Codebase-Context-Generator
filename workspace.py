@@ -28,14 +28,36 @@ class DataWorkspace:
         index_path = base_dir / "faiss.index"
         model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
 
+        if not (metadata_path.exists() and graph_path.exists() and index_path.exists()):
+            raise FileNotFoundError(
+                "Data files are missing. Re-run the embed step to generate them."
+            )
+
+        with open(graph_path, "r", encoding="utf-8") as f:
+            graph = json.load(f)
+        graph_checksum = graph.get("checksum")
+        if not graph_checksum:
+            raise RuntimeError(
+                "call_graph.json is missing a checksum. Re-run the embed step."
+            )
+
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            meta_raw = json.load(f)
+        if isinstance(meta_raw, list):
+            raise RuntimeError(
+                "embedding_metadata.json is outdated. Re-run the embed step."
+            )
+        metadata_checksum = meta_raw.get("graph_checksum")
+        if metadata_checksum != graph_checksum:
+            raise RuntimeError(
+                "Data artifacts are out of sync. Re-run the embed step."
+            )
+        metadata = meta_raw.get("records", [])
+
         embedding = lazy_import("embedding")
         faiss = lazy_import("faiss")
         model = embedding.load_embedding_model(model_path)
         index = faiss.read_index(str(index_path))
-        with open(metadata_path, "r", encoding="utf-8") as f:
-            metadata = json.load(f)
-        with open(graph_path, "r", encoding="utf-8") as f:
-            graph = json.load(f)
         node_map = {n["id"]: n for n in graph.get("nodes", [])}
 
         return cls(
