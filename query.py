@@ -11,6 +11,7 @@ from session_logger import (
     log_session_to_json,
     log_summary_to_markdown,
     format_function_entry,
+    get_timestamp,
 )
 
 
@@ -129,7 +130,6 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
     sub_question_count = int(SETTINGS["query"].get("sub_question_count", 0))
     use_sub_questions = sub_question_count > 0
-    results_file = base_dir / "results.txt"
 
     if problem is None:
         from interactive_cli import ask_problem
@@ -172,11 +172,50 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 inbound_weight=SETTINGS["context"].get("inbound_weight", 1.0),
             )
             print("Neighbors:")
+            lines = []
             for nid in nb_ids:
                 node = node_map.get(nid, {})
-                print(f"- {node.get('name')} — {node.get('file_path')}")
+                line = f"- {node.get('name')} — {node.get('file_path')}"
+                print(line)
+                lines.append(line)
             print()
+            if last_session and last_session.output_dir:
+                nb_file = Path(last_session.output_dir) / "neighbors.txt"
+                with open(nb_file, "w", encoding="utf-8") as f:
+                    f.write("\n".join(lines) + "\n")
+                try:
+                    manifest_path = Path(last_session.output_dir) / "manifest.json"
+                    manifest_data = json.loads(manifest_path.read_text())
+                except Exception:
+                    manifest_data = {}
+                manifest_data.setdefault("files", [])
+                if "neighbors.txt" not in manifest_data["files"]:
+                    manifest_data["files"].append("neighbors.txt")
+                with open(manifest_path, "w", encoding="utf-8") as mf:
+                    json.dump(manifest_data, mf, indent=2)
             return last_session
+
+        run_id = get_timestamp()
+        run_dir = base_dir / "runs" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        manifest = {
+            "run_id": run_id,
+            "query": query,
+            "project": project_folder,
+            "subqueries": [],
+            "files": [],
+            "embedding_model": SETTINGS.get("embedding", {}).get("encoder_model_path")
+            or "sentence-transformers/all-MiniLM-L6-v2",
+            "timestamp": run_id,
+        }
+        with open(run_dir / "settings_snapshot.json", "w", encoding="utf-8") as f:
+            json.dump(SETTINGS, f, indent=2)
+        with open(run_dir / "manifest.json", "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        if suggestions:
+            with open(run_dir / "prompt_suggestions.json", "w", encoding="utf-8") as f:
+                json.dump(suggestions, f, indent=2)
+            manifest["files"].append("prompt_suggestions.json")
 
         queries = [correct_phrase(symspell, query)]
         sub_queries = []
@@ -193,17 +232,11 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         elif use_sub_questions:
             print("Sub-question generation skipped because no LLM model was available.")
 
-        if sub_queries or use_sub_questions:
-            with open(results_file, "a", encoding="utf-8") as f:
-                f.write(f"Original query: {query}\n")
-                if sub_queries:
-                    f.write("Sub-queries:\n")
-                    for q in sub_queries:
-                        f.write(f"- {q}\n")
-                else:
-                    f.write("Sub-queries: none\n")
-                f.write("\n")
-            print(f"🗃 Output saved to: {results_file}")
+        if sub_queries:
+            with open(run_dir / "subqueries.json", "w", encoding="utf-8") as f:
+                json.dump(sub_queries, f, indent=2)
+            manifest["subqueries"] = sub_queries
+            manifest["files"].append("subqueries.json")
 
         vecs = model.encode(queries, normalize_embeddings=True)
         if vecs.ndim == 1:
@@ -355,22 +388,12 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             final_indices,
             metadata,
             node_map,
-            save_path=str(base_dir / "last_summary.txt"),
             base_dir=SETTINGS.get("project_root"),
             workspace=workspace,
         )
         print(summary)
         print()
 
-        with open(results_file, "a", encoding="utf-8") as f:
-            f.write("Items returned:\n")
-            for i in final_indices:
-                meta = metadata[i]
-                node = node_map.get(meta.get("id"), {})
-                name = node.get("name", meta.get("name")) or node.get("type", "item")
-                f.write(f"- {name}\n")
-            f.write("\n")
-        print(f"🗃 Output saved to: {results_file}")
 
         print("[⏳ Working...] Generating final prompt")
         prompt_builder = lazy_import("prompt_builder")
@@ -378,8 +401,9 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             prompt_text = prompt_builder.build_json_prompt(
                 full_function_objects,
                 problem,
-                save_path=str(base_dir / "initial_prompt.json"),
+                save_path=str(run_dir / "prompt.json"),
             )
+            manifest["files"].append("prompt.json")
             print("[✔ Done]")
         except Exception:
             print("[❌ Failed]")
@@ -398,10 +422,9 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 final_context = "💥 Gemini query failed"
                 print("[❌ Failed]")
             print(final_context)
-            with open(results_file, "a", encoding="utf-8") as f:
-                f.write("LLM Response:\n")
-                f.write(final_context + "\n\n")
-            print(f"🗃 Output saved to: {results_file}")
+            with open(run_dir / "raw_llm_response.txt", "w", encoding="utf-8") as f:
+                f.write(final_context + "\n")
+            manifest["files"].append("raw_llm_response.txt")
         else:
             print("Skipping LLM query as the model is not available.")
             final_context = ""
@@ -449,18 +472,26 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         }
 
         if SETTINGS.get("logging", {}).get("log_markdown", True):
-            md_file = log_summary_to_markdown({
-                "original_query": query,
-                "subqueries": subquery_data,
-                "functions": function_index,
-                "summary": summary_data,
-                "llm_response": final_context,
-            }, "logs")
+            md_file = log_summary_to_markdown(
+                {
+                    "original_query": query,
+                    "subqueries": subquery_data,
+                    "functions": function_index,
+                    "summary": summary_data,
+                    "llm_response": final_context,
+                },
+                run_dir / "summary.md",
+            )
+            manifest["files"].append("summary.md")
             print(f"✔ Saved {md_file}")
 
         if SETTINGS.get("logging", {}).get("log_json", True):
-            json_file = log_session_to_json(log_data, "logs")
+            json_file = log_session_to_json(log_data, run_dir / "results.json")
+            manifest["files"].append("results.json")
             print(f"✔ Saved {json_file}")
+
+        with open(run_dir / "manifest.json", "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
 
         workspace_mod = lazy_import("workspace")
         session = workspace_mod.QuerySession(
@@ -470,6 +501,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             function_matches=function_index,
             final_indices=final_indices,
             llm_response=final_context,
+            output_dir=run_dir,
         )
         last = session
         return session

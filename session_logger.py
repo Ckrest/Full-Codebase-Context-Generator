@@ -58,26 +58,34 @@ def format_function_entry(node: dict, relevance: dict, graph: dict) -> dict:
     }
 
 
-def log_session_to_json(data: dict, path: str) -> str:
+def log_session_to_json(data: dict, path: str | Path) -> str:
     """Write session data to ``path`` in JSON format and return file path."""
-    logs = Path(path)
-    logs.mkdir(parents=True, exist_ok=True)
-    slug = slugify(data.get("query", data.get("original_query", "query")))
-    fname = f"{get_timestamp()}_{slug}.json"
-    full_path = logs / fname
+    dest = Path(path)
+    if dest.suffix:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        full_path = dest
+    else:
+        dest.mkdir(parents=True, exist_ok=True)
+        slug = slugify(data.get("query", data.get("original_query", "query")))
+        fname = f"{get_timestamp()}_{slug}.json"
+        full_path = dest / fname
     with open(full_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
     return str(full_path)
 
 
-def log_summary_to_markdown(data: dict, path: str) -> str:
+def log_summary_to_markdown(data: dict, path: str | Path) -> str:
     """Write a human-readable summary of ``data`` to ``path`` and return file path."""
-    logs = Path(path)
-    logs.mkdir(parents=True, exist_ok=True)
-    slug = slugify(data.get("original_query", "query"))
-    fname = f"query_{slug}_{get_timestamp()}.md"
-    full_path = logs / fname
+    dest = Path(path)
+    if dest.suffix:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        full_path = dest
+    else:
+        dest.mkdir(parents=True, exist_ok=True)
+        slug = slugify(data.get("original_query", "query"))
+        fname = f"query_{slug}_{get_timestamp()}.md"
+        full_path = dest / fname
 
     subqueries = data.get("subqueries", [])
     functions = data.get("functions", {})

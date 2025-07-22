@@ -20,7 +20,7 @@ DEFAULT_SETTINGS = {
         "max_output_tokens": 5000,
     },
     "paths": {
-        "output_dir": "extracted",
+        "output_dir": "output",
     },
     "query": {
         "top_k_results": 5,

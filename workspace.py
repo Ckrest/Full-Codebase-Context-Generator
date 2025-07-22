@@ -59,3 +59,4 @@ class QuerySession:
     function_matches: dict[str, dict] = field(default_factory=dict)
     final_indices: list[int] = field(default_factory=list)
     llm_response: str = ""
+    output_dir: Path | None = None
