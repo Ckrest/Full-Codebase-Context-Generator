@@ -189,8 +189,16 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 except Exception:
                     manifest_data = {}
                 manifest_data.setdefault("files", [])
-                if "neighbors.txt" not in manifest_data["files"]:
-                    manifest_data["files"].append("neighbors.txt")
+                has_nb = any(
+                    (item == "neighbors.txt") or
+                    (isinstance(item, dict) and item.get("file") == "neighbors.txt")
+                    for item in manifest_data["files"]
+                )
+                if not has_nb:
+                    manifest_data["files"].append({
+                        "file": "neighbors.txt",
+                        "description": "Neighbors of the selected function from the previous search run."
+                    })
                 with open(manifest_path, "w", encoding="utf-8") as mf:
                     json.dump(manifest_data, mf, indent=2)
             return last_session
@@ -208,14 +216,24 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             or "sentence-transformers/all-MiniLM-L6-v2",
             "timestamp": run_id,
         }
+
+        def add_manifest_file(name: str, desc: str) -> None:
+            manifest.setdefault("files", [])
+            manifest["files"].append({"file": name, "description": desc})
+
         with open(run_dir / "settings_snapshot.json", "w", encoding="utf-8") as f:
             json.dump(SETTINGS, f, indent=2)
-        with open(run_dir / "manifest.json", "w", encoding="utf-8") as f:
-            json.dump(manifest, f, indent=2)
+        add_manifest_file(
+            "settings_snapshot.json",
+            "Snapshot of settings used for this run."
+        )
         if suggestions:
             with open(run_dir / "prompt_suggestions.json", "w", encoding="utf-8") as f:
                 json.dump(suggestions, f, indent=2)
-            manifest["files"].append("prompt_suggestions.json")
+            add_manifest_file(
+                "prompt_suggestions.json",
+                "Possible follow-up prompts suggested by the LLM."
+            )
 
         queries = [correct_phrase(symspell, query)]
         sub_queries = []
@@ -236,7 +254,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             with open(run_dir / "subqueries.json", "w", encoding="utf-8") as f:
                 json.dump(sub_queries, f, indent=2)
             manifest["subqueries"] = sub_queries
-            manifest["files"].append("subqueries.json")
+            add_manifest_file(
+                "subqueries.json",
+                "List of sub-queries derived from the original query."
+            )
 
         vecs = model.encode(queries, normalize_embeddings=True)
         if vecs.ndim == 1:
@@ -403,7 +424,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 problem,
                 save_path=str(run_dir / "prompt.json"),
             )
-            manifest["files"].append("prompt.json")
+            add_manifest_file(
+                "prompt.json",
+                "The exact JSON payload sent to the LLM for analysis."
+            )
             print("[✔ Done]")
         except Exception:
             print("[❌ Failed]")
@@ -424,7 +448,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             print(final_context)
             with open(run_dir / "raw_llm_response.txt", "w", encoding="utf-8") as f:
                 f.write(final_context + "\n")
-            manifest["files"].append("raw_llm_response.txt")
+            add_manifest_file(
+                "raw_llm_response.txt",
+                "Unprocessed output returned by the LLM."
+            )
         else:
             print("Skipping LLM query as the model is not available.")
             final_context = ""
@@ -482,13 +509,40 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 },
                 run_dir / "summary.md",
             )
-            manifest["files"].append("summary.md")
+            add_manifest_file(
+                "summary.md",
+                "Human-readable summary of query results."
+            )
             print(f"✔ Saved {md_file}")
 
         if SETTINGS.get("logging", {}).get("log_json", True):
             json_file = log_session_to_json(log_data, run_dir / "results.json")
-            manifest["files"].append("results.json")
+            add_manifest_file(
+                "results.json",
+                "Machine-readable summary of query results."
+            )
             print(f"✔ Saved {json_file}")
+
+        # Generate README summarizing the run
+        readme_lines = [
+            f"# Query Run {run_id}",
+            "",
+            f"Original query: {query}",
+            "",
+            "## Artifacts",
+        ]
+        for item in manifest.get("files", []):
+            if isinstance(item, dict):
+                readme_lines.append(f"- **{item['file']}** - {item.get('description','')}")
+            else:
+                readme_lines.append(f"- **{item}**")
+        readme_path = run_dir / "README.md"
+        with open(readme_path, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(readme_lines) + "\n")
+        add_manifest_file(
+            "README.md",
+            "Overview of the run and descriptions of generated files."
+        )
 
         with open(run_dir / "manifest.json", "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)
