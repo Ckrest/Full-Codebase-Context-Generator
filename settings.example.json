@@ -68,17 +68,18 @@
       "required_long_lines": 2
     }
   },
-  "visualization": {
-    "figsize": [
-      12,
-      10
-    ],
-    "spring_layout_k": 0.5,
-    "spring_layout_iterations": 20,
-    "node_size": 1500,
-    "font_size": 8,
-    "node_color": "skyblue"
-  },
+    "visualization": {
+      "figsize": [
+        12,
+        10
+      ],
+      "spring_layout_k": 0.5,
+      "spring_layout_iterations": 20,
+      "node_size": 1500,
+      "font_size": 8,
+      "node_color": "skyblue",
+      "auto_visualize": false
+    },
   "embedding": {
     "embedding_dim": 384,
     "encoder_model_path": ""
