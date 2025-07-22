@@ -2,13 +2,8 @@ import json
 from pathlib import Path
 import sys
 
-import numpy as np
-
-from llm import get_llm_model, call_llm, PROMPT_GEN_TEMPLATE, PROMPT_NEW_QUERY, get_example_json
-from workspace import DataWorkspace, QuerySession
+from lazy_loader import lazy_import
 from spellcheck_utils import create_symspell_from_terms, correct_phrase
-from graph import expand_graph
-from prompt_builder import build_json_prompt, format_summary
 from config import SETTINGS
 from session_logger import (
     log_session_to_json,
@@ -27,6 +22,7 @@ def aggregate_scores(function_index: dict) -> dict:
         ]
         if not matches:
             continue
+        np = lazy_import("numpy")
         scores = [m["score"] for m in matches]
         agg = {
             "avg_score": float(np.mean(scores)),
@@ -38,7 +34,8 @@ def aggregate_scores(function_index: dict) -> dict:
     return aggregated
 
 
-def average_embeddings(model, texts) -> np.ndarray:
+def average_embeddings(model, texts) -> object:
+    np = lazy_import("numpy")
     vecs = model.encode(list(texts), normalize_embeddings=True)
     vecs = np.asarray(vecs, dtype=float)
     if vecs.ndim == 1:
@@ -58,22 +55,25 @@ def parse_json_list(text: str):
 def generate_prompt_suggestions(problem: str, count: int, llm_model):
     if not llm_model or count <= 0:
         return []
-    example_json = get_example_json(count)
-    prompt = PROMPT_GEN_TEMPLATE.format(problem=problem, n=count, get_example_json=example_json)
-    text = call_llm(llm_model, prompt)
+    llm = lazy_import("llm")
+    example_json = llm.get_example_json(count)
+    prompt = llm.PROMPT_GEN_TEMPLATE.format(problem=problem, n=count, get_example_json=example_json)
+    text = llm.call_llm(llm_model, prompt)
     return parse_json_list(text)
 
 
 def generate_new_prompt(problem: str, existing, llm_model):
     if not llm_model:
         return ""
-    prompt = PROMPT_NEW_QUERY.format(problem=problem, existing=json.dumps(existing))
-    return call_llm(llm_model, prompt).strip()
+    llm = lazy_import("llm")
+    prompt = llm.PROMPT_NEW_QUERY.format(problem=problem, existing=json.dumps(existing))
+    return llm.call_llm(llm_model, prompt).strip()
 
 
 def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
     if not llm_model or count <= 0:
         return []
+    llm = lazy_import("llm")
     prompt = (
         "You are helping search a codebase. Given the following question, "
         f"break it into {count} distinct sub-questions. Each one should represent a different "
@@ -81,7 +81,7 @@ def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
         "Be concise and technical.\n\n# Original Question:\n"
         f"{query}\n\n# Sub-Queries:"
     )
-    text = call_llm(llm_model, prompt)
+    text = llm.call_llm(llm_model, prompt)
     results = []
     for line in text.splitlines():
         t = line.strip()
@@ -94,7 +94,8 @@ def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
 
 
 def main(project_folder: str, problem: str | None = None, initial_query: str | None = None):
-    workspace = DataWorkspace.load(project_folder)
+    workspace_mod = lazy_import("workspace")
+    workspace = workspace_mod.DataWorkspace.load(project_folder)
     base_dir = workspace.base_dir
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
     top_k = SETTINGS["query"]["top_k_results"]
@@ -112,7 +113,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
     print("🚀 Loading models and data...")
     model = workspace.model
-    llm_model = get_llm_model()
+    llm = lazy_import("llm")
+    llm_model = llm.get_llm_model()
     index = workspace.index
     metadata = workspace.metadata
     graph = workspace.graph
@@ -143,7 +145,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         except Exception:
             print("[❌ Failed]")
 
-    def run_search(query, last_session: QuerySession | None = None):
+    def run_search(query, last_session: "workspace.QuerySession" | None = None):
         nonlocal last
         if query.startswith("neighbors"):
             if not last_session:
@@ -157,7 +159,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 return last_session
 
             meta = metadata[idx]
-            nb_ids = expand_graph(
+            graph_mod = lazy_import("graph")
+            nb_ids = graph_mod.expand_graph(
                 graph,
                 meta["id"],
                 depth=SETTINGS["context"].get("context_hops", 1),
@@ -212,6 +215,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         all_scores: dict[int, list[float]] = {}
 
         for sq_idx, vec in enumerate(vecs):
+            np = lazy_import("numpy")
             dists, idxs = index.search(
                 np.asarray(vec, dtype=np.float32).reshape(1, -1), top_k
             )
@@ -249,6 +253,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 all_scores.setdefault(int(idx), []).append(float(dist))
 
         total_sub_count = len(queries)
+        np = lazy_import("numpy")
         for meta in function_index.values():
             scores = [s["score"] for s in meta["subqueries"]]
             times = len(scores)
@@ -338,7 +343,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             role = func.get("call_graph_role", "unknown")
             print(f"- {name} | Score: {score:.3f} | Role: {role}")
 
-        summary = format_summary(
+        prompt_builder = lazy_import("prompt_builder")
+        summary = prompt_builder.format_summary(
             final_indices,
             metadata,
             node_map,
@@ -360,8 +366,9 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         print(f"🗃 Output saved to: {results_file}")
 
         print("[⏳ Working...] Generating final prompt")
+        prompt_builder = lazy_import("prompt_builder")
         try:
-            prompt_text = build_json_prompt(
+            prompt_text = prompt_builder.build_json_prompt(
                 full_function_objects,
                 problem,
                 save_path=str(base_dir / "initial_prompt.json"),
@@ -375,9 +382,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         print()
 
         if llm_model:
+            llm_mod = lazy_import("llm")
             print("[⏳ Working...] Querying Gemini")
             try:
-                final_context = call_llm(llm_model, prompt_text)
+                final_context = llm_mod.call_llm(llm_model, prompt_text)
                 print("[✔ Done]")
             except Exception:
                 final_context = "💥 Gemini query failed"
@@ -447,7 +455,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             json_file = log_session_to_json(log_data, "logs")
             print(f"✔ Saved {json_file}")
 
-        session = QuerySession(
+        workspace_mod = lazy_import("workspace")
+        session = workspace_mod.QuerySession(
             problem=problem or "",
             queries=queries,
             subquery_data=subquery_data,

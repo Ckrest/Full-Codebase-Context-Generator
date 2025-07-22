@@ -3,50 +3,45 @@ import logging
 from pathlib import Path
 import json
 
-from interactive_cli import start_event, after_generation_event
 from config import SETTINGS, reload_settings
-from graph import (
-    crawl_directory,
-    build_call_graph,
-    save_graph_json,
-    analyze_graph,
-    visualize_call_graph,
-)
-from embedding import generate_embeddings
-from query import main as query_main
+from lazy_loader import lazy_import
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def run_extract(project_path: Path, project_name: str, visualize: bool = False) -> None:
+    graph_mod = lazy_import("graph")
     logger.info("Crawling source files in %s", project_path)
-    entries = crawl_directory(str(project_path), respect_gitignore=True)
+    entries = graph_mod.crawl_directory(str(project_path), respect_gitignore=True)
     logger.info("Building call graph...")
-    graph = build_call_graph(entries)
+    graph = graph_mod.build_call_graph(entries)
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     out_dir.mkdir(parents=True, exist_ok=True)
     graph_path = out_dir / "call_graph.json"
-    save_graph_json(graph, graph_path)
+    graph_mod.save_graph_json(graph, graph_path)
     logger.info("Saved call graph to %s", graph_path)
     if visualize:
         img_path = graph_path.with_suffix(".png")
         data = json.loads(graph_path.read_text())
-        visualize_call_graph(data, str(img_path))
+        graph_mod.visualize_call_graph(data, str(img_path))
         logger.info("Saved visualization to %s", img_path)
 
 
 def run_generate_embeddings(project_name: str) -> None:
     logger.info("Generating embeddings for %s", project_name)
-    generate_embeddings(project_name)
+    embedding = lazy_import("embedding")
+    embedding.generate_embeddings(project_name)
 
 
 def run_query(project_name: str, problem: str | None, prompt: str | None) -> None:
     logger.info("Launching query tool...")
-    query_main(project_name, problem, initial_query=prompt)
+    query_mod = lazy_import("query")
+    query_mod.main(project_name, problem, initial_query=prompt)
 
 
 def run_inspect(project_name: str) -> None:
+    graph_mod = lazy_import("graph")
     extracted_root = Path(SETTINGS["paths"]["output_dir"])
     selected = extracted_root / project_name
     call_graph_path = selected / "call_graph.json"
@@ -54,10 +49,11 @@ def run_inspect(project_name: str) -> None:
         print(f"No call_graph.json found in {selected}.")
         return
     data = json.loads(call_graph_path.read_text())
-    analyze_graph(data)
+    graph_mod.analyze_graph(data)
 
 
 def run_visualize(project_name: str) -> None:
+    graph_mod = lazy_import("graph")
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     call_graph_path = out_dir / "call_graph.json"
     if not call_graph_path.exists():
@@ -65,7 +61,7 @@ def run_visualize(project_name: str) -> None:
         return
     data = json.loads(call_graph_path.read_text())
     img_path = out_dir / "call_graph.png"
-    visualize_call_graph(data, str(img_path))
+    graph_mod.visualize_call_graph(data, str(img_path))
     print(f"Saved visualization to {img_path}")
 
 
@@ -119,7 +115,8 @@ def main() -> None:
             start_values = Path(args.path), None, None
             args.path = None
         else:
-            start_values = start_event()
+            cli = lazy_import("interactive_cli")
+            start_values = cli.start_event()
 
         project_path, problem, prompt = start_values
         project_name = project_path.name
@@ -144,8 +141,8 @@ def main() -> None:
             logger.info("Using existing embeddings at %s", embeddings_path)
 
         run_query(project_name, problem, prompt)
-
-        if not after_generation_event():
+        cli = lazy_import("interactive_cli")
+        if not cli.after_generation_event():
             break
 
 

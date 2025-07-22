@@ -3,9 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import json
-import faiss
-
-from embedding import load_embedding_model
+from lazy_loader import lazy_import
 from config import SETTINGS
 
 
@@ -18,7 +16,7 @@ class DataWorkspace:
     metadata: list = field(default_factory=list)
     graph: dict = field(default_factory=dict)
     node_map: dict = field(default_factory=dict)
-    index: faiss.Index | None = None
+    index: object | None = None
     model: object | None = None
 
     @classmethod
@@ -30,7 +28,9 @@ class DataWorkspace:
         index_path = base_dir / "faiss.index"
         model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
 
-        model = load_embedding_model(model_path)
+        embedding = lazy_import("embedding")
+        faiss = lazy_import("faiss")
+        model = embedding.load_embedding_model(model_path)
         index = faiss.read_index(str(index_path))
         with open(metadata_path, "r", encoding="utf-8") as f:
             metadata = json.load(f)
