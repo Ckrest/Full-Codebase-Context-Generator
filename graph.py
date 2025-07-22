@@ -506,7 +506,8 @@ def crawl_directory(root: str, respect_gitignore: bool = True) -> List[Dict]:
             paths.append((dirpath, filename))
 
     for dirpath, filename in tqdm(paths, desc="Scanning files", unit="file"):
-        rel = os.path.relpath(os.path.join(dirpath, filename), root)
+        full_path = os.path.join(dirpath, filename)
+        rel = os.path.relpath(full_path, root)
         ext = os.path.splitext(filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             logger.debug("Skipping %s: extension not allowed", rel)
@@ -518,7 +519,9 @@ def crawl_directory(root: str, respect_gitignore: bool = True) -> List[Dict]:
             continue
         extractor = EXTENSION_MAP.get(ext)
         if extractor:
-            entries = extractor(os.path.join(dirpath, filename))
+            entries = extractor(full_path)
+            for entry in entries:
+                entry["file_path"] = rel
         else:
             logger.debug("Skipping %s: no extractor", rel)
             SKIPPED_LOG.append({"file": rel, "reason": "no extractor"})
