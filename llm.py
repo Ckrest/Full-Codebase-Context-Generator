@@ -55,7 +55,7 @@ def get_llm_model():
     if api_key:
         if api_type != "gemini":
             raise ValueError(f"Unsupported API type: {api_type}")
-        genai = lazy_import("google.generativeai")
+        genai = lazy_import("google.genai")
         client = genai.Client(api_key=api_key)
         return client
     if local_path:
@@ -80,7 +80,7 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
         max_tokens = api_cfg.get("max_output_tokens", 5000)
     top_p = api_cfg.get("top_p", 1.0)
 
-    types = lazy_import("google.generativeai.types")
+    types = lazy_import("google.genai.types")
     try:
         response = client.models.generate_content(
             model="gemini-2.5-pro",

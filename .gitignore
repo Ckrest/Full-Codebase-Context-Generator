@@ -1,10 +1,16 @@
 # Ignore everything in the extracted folder
 extracted/
 
-# Ignore everything in the __pycache__ folder
+# Ignore python helper files
 __pycache__/
+.pytest_cache/
+
+# Ignore log files
+logs/
 
 # Ignore settings file to prevent tracking local configurations
 # Use settings.example.json as a template to create your settings.json
 settings.json
-.pytest_cache/
+
+
+ToDo.txt
