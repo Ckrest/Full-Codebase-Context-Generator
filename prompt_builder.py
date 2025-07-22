@@ -56,9 +56,10 @@ def format_summary(
         truncated = len(lines) > 40
         code = _truncate_code(full_code)
 
+        label = "Function" if node.get("type") == "function" else "Item"
         block_lines = [
             f"======= [{pos} of {total}] =======",
-            f"Function: {name} | File: {display_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
+            f"{label}: {name} | File: {display_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
         ]
         if tokens > 1000:
             block_lines.append(
@@ -70,19 +71,16 @@ def format_summary(
         if not comments:
             block_lines.append("  - None")
 
-        block_lines.append("")
-        block_lines.append("Calls:")
-        for c in calls:
-            block_lines.append(f"  - {c}")
-        if not calls:
-            block_lines.append("  - None")
-
-        block_lines.append("")
-        block_lines.append("Called By:")
-        for c in called_by:
-            block_lines.append(f"  - {c}")
-        if not called_by:
-            block_lines.append("  - None")
+        if calls:
+            block_lines.append("")
+            block_lines.append("Calls:")
+            for c in calls:
+                block_lines.append(f"  - {c}")
+        if called_by:
+            block_lines.append("")
+            block_lines.append("Called By:")
+            for c in called_by:
+                block_lines.append(f"  - {c}")
 
         block_lines.append("")
         block_lines.append("Code:")
@@ -94,7 +92,7 @@ def format_summary(
 
         block_full = [
             f"======= [{pos} of {total}] =======",
-            f"Function: {name} | File: {file_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
+            f"{label}: {name} | File: {file_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
         ]
         if tokens > 1000:
             block_full.append(
@@ -105,18 +103,16 @@ def format_summary(
             block_full.append(f"  - {c}")
         if not comments:
             block_full.append("  - None")
-        block_full.append("")
-        block_full.append("Calls:")
-        for c in calls:
-            block_full.append(f"  - {c}")
-        if not calls:
-            block_full.append("  - None")
-        block_full.append("")
-        block_full.append("Called By:")
-        for c in called_by:
-            block_full.append(f"  - {c}")
-        if not called_by:
-            block_full.append("  - None")
+        if calls:
+            block_full.append("")
+            block_full.append("Calls:")
+            for c in calls:
+                block_full.append(f"  - {c}")
+        if called_by:
+            block_full.append("")
+            block_full.append("Called By:")
+            for c in called_by:
+                block_full.append(f"  - {c}")
         block_full.append("")
         block_full.append("Code:")
         block_full.append(code)
@@ -156,8 +152,8 @@ def build_prompt(
             graph = json.load(f)
 
         node_map = {n["id"]: n for n in graph.get("nodes", [])}
-    blocks = ["# QUESTION", user_question.strip(), "", f"# FUNCTION CONTEXT (Top {len(indices)} Matches)"]
-    blocks_full = ["# QUESTION", user_question.strip(), "", f"# FUNCTION CONTEXT (Top {len(indices)} Matches)"]
+    blocks = ["# QUESTION", user_question.strip(), "", f"# ITEM CONTEXT (Top {len(indices)} Matches)"]
+    blocks_full = ["# QUESTION", user_question.strip(), "", f"# ITEM CONTEXT (Top {len(indices)} Matches)"]
 
     for i, idx in enumerate(indices):
         meta = metadata[idx]
@@ -176,39 +172,45 @@ def build_prompt(
         called_by = [node_map.get(cid, {}).get("name", cid) for cid in node.get("called_by", [])]
         code = _truncate_code(node.get("code", ""))
 
+        label = "Function" if node.get("type") == "function" else "Item"
+        lang = node.get("language", "text")
         section = [
-            f"## Function {i + 1}",
+            f"## {label} {i + 1}",
             f"ID: {meta['id']}",
             f"Name: {name}",
             f"File: {display_path}",
             f"Comments:",
         ]
         section += [f"- {c}" for c in comments] if comments else ["- None"]
-        section.append("Calls:")
-        section += [f"- {c}" for c in calls] if calls else ["- None"]
-        section.append("Called By:")
-        section += [f"- {c}" for c in called_by] if called_by else ["- None"]
+        if calls:
+            section.append("Calls:")
+            section += [f"- {c}" for c in calls]
+        if called_by:
+            section.append("Called By:")
+            section += [f"- {c}" for c in called_by]
         section.append("Code:")
-        section.append("```python")
+        section.append(f"```{lang}")
         section.append(code)
         section.append("```")
 
         blocks.append("\n".join(section))
 
         full_section = [
-            f"## Function {i + 1}",
+            f"## {label} {i + 1}",
             f"ID: {meta['id']}",
             f"Name: {name}",
             f"File: {file_path}",
             f"Comments:",
         ]
         full_section += [f"- {c}" for c in comments] if comments else ["- None"]
-        full_section.append("Calls:")
-        full_section += [f"- {c}" for c in calls] if calls else ["- None"]
-        full_section.append("Called By:")
-        full_section += [f"- {c}" for c in called_by] if called_by else ["- None"]
+        if calls:
+            full_section.append("Calls:")
+            full_section += [f"- {c}" for c in calls]
+        if called_by:
+            full_section.append("Called By:")
+            full_section += [f"- {c}" for c in called_by]
         full_section.append("Code:")
-        full_section.append("```python")
+        full_section.append(f"```{lang}")
         full_section.append(code)
         full_section.append("```")
 

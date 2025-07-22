@@ -6,8 +6,9 @@ This project uses a `settings.json` file for configuration.
 If the file does not exist it will be created automatically with default values.
 The `settings.example.json` file is kept in sync with the defaults whenever the
 tools run, so copying that file is an easy way to start customizing your own
-settings. The extractors handle Python, HTML, Markdown, and JavaScript source
-files using tree-sitter for the latter.
+settings. The extractors handle Python, HTML, Markdown, JavaScript, and
+TypeScript source files using tree-sitter for the latter. JSON, YAML, and
+plain text files are also parsed so every piece of content can be searched.
 
 ### Installation
 
@@ -90,7 +91,7 @@ Running `main.py` without arguments starts an interactive loop. It will prompt f
 Two optional features help refine search queries:
 
 - **use_spellcheck** – when `true`, the query is corrected using SymSpell before searching.
-  A small dictionary is built from function names automatically, but you can also
+  A small dictionary is built from item names automatically, but you can also
   download a larger frequency dictionary from the SymSpell repository and place it
   in the project root.
 - **sub_question_count** – when greater than 0, your question is first sent to the

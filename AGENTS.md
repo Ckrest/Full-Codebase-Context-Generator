@@ -20,10 +20,11 @@ those embeddings. The main scripts are located in the repository root.
 ## Function Relationships
 
 1. **Extraction** – `graph.extract_from_python`,
-   `extract_from_html`, `extract_from_markdown`, and
-   `extract_from_javascript` parse files and return a
-   list of entries. `build_call_graph` then creates a `networkx` graph from
-   these entries and `save_graph_json` writes it to disk.
+   `extract_from_html`, `extract_from_markdown`,
+   `extract_from_javascript`, and `extract_from_typescript` parse files
+   and return a list of entries. `build_call_graph` adds every entry to a
+   `networkx` graph (not just functions) and `save_graph_json` writes it to
+   disk.
 2. **Context Gathering** – `graph.gather_context` collects code from related
    nodes using `expand_graph`. Direction can be controlled with the
    `bidirectional` setting.
