@@ -66,7 +66,11 @@ def get_llm_model():
 
 
 def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None):
-    """Send ``prompt_text`` to the provided LLM client."""
+    """Send ``prompt_text`` to the provided LLM client.
+
+    A short system instruction is sent with every request to
+    encourage the model to follow the prompts.
+    """
     if not client:
         return "❌ Generative model client not initialized."
     
@@ -80,6 +84,8 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
         max_tokens = api_cfg.get("max_output_tokens", 5000)
     top_p = api_cfg.get("top_p", 1.0)
 
+    instruction = "Your job is to process and format data."
+
     types = lazy_import("google.genai.types")
     try:
         response = client.models.generate_content(
@@ -89,6 +95,7 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
                 temperature=temperature,
                 max_output_tokens=max_tokens,
                 top_p=top_p,
+                system_instruction=instruction,
             ),
         )
         raw_text = (
