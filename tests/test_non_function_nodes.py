@@ -49,8 +49,10 @@ def test_non_function_nodes(tmp_path, monkeypatch):
 
     embedding.generate_embeddings(project)
 
-    meta = json.loads((out_proj / "embedding_metadata.json").read_text())
+    meta_raw = json.loads((out_proj / "embedding_metadata.json").read_text())
     graph_data = json.loads((out_proj / "call_graph.json").read_text())
+    assert meta_raw["graph_checksum"] == graph_data["checksum"]
+    meta = meta_raw["records"]
     id_to_type = {n["id"]: n["type"] for n in graph_data["nodes"]}
     meta_types = {id_to_type[m["id"]] for m in meta}
     assert meta_types == {"function"}

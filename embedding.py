@@ -30,6 +30,7 @@ def generate_embeddings(project_folder: str) -> None:
     print(f"Loading call graph from {call_graph_path} ...")
     with open(call_graph_path, "r", encoding="utf-8") as f:
         graph = json.load(f)
+    graph_checksum = graph.get("checksum")
 
     nodes = graph["nodes"]
     texts = []
@@ -73,8 +74,12 @@ def generate_embeddings(project_folder: str) -> None:
     np.save(output_dir / "embeddings.npy", embeddings)
 
     meta_file = output_dir / "embedding_metadata.json"
+    meta_out = {
+        "graph_checksum": graph_checksum,
+        "records": metadata,
+    }
     with open(meta_file, "w", encoding="utf-8") as f:
-        json.dump(metadata, f, indent=2)
+        json.dump(meta_out, f, indent=2)
     print(f"🗃 Output saved to: {meta_file}")
 
     index = faiss.IndexFlatIP(embedding_dim)

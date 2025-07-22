@@ -632,6 +632,13 @@ def save_graph_json(graph: nx.DiGraph, path: Path):
         data["nodes"].append({"id": node, **graph.nodes[node], "calls": calls, "called_by": called_by})
     for u, v, d in graph.edges(data=True):
         data["edges"].append({"from": u, "to": v, "weight": d.get("weight", 1)})
+
+    base_data = {"nodes": data["nodes"], "edges": data["edges"]}
+    checksum = hashlib.sha256(
+        json.dumps(base_data, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    data["checksum"] = checksum
+
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
     print(f"🗃 Output saved to: {path}")
 
