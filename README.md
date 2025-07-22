@@ -88,6 +88,7 @@ python main.py inspect my_project
 ```
 
 Running `main.py` without arguments starts an interactive loop. It will prompt for the project path, problem statement, and search query. Use the up/down arrows to recall previous answers. During querying you can type `neighbors <n>` to see the graph neighbors of result `n`. Prompt history is saved under `~/.full_context_history/`.
+The list of neighbors is also written to `neighbors.txt` in the run directory.
 
 ### Spellcheck and Sub-Queries
 

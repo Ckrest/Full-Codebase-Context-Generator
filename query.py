@@ -12,6 +12,7 @@ from session_logger import (
     log_summary_to_markdown,
     format_function_entry,
     get_timestamp,
+    write_text_artifact,
 )
 
 
@@ -180,25 +181,19 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 lines.append(line)
             print()
             if last_session and last_session.output_dir:
-                nb_file = Path(last_session.output_dir) / "neighbors.txt"
-                with open(nb_file, "w", encoding="utf-8") as f:
-                    f.write("\n".join(lines) + "\n")
+                manifest_path = Path(last_session.output_dir) / "manifest.json"
                 try:
-                    manifest_path = Path(last_session.output_dir) / "manifest.json"
                     manifest_data = json.loads(manifest_path.read_text())
                 except Exception:
                     manifest_data = {}
-                manifest_data.setdefault("files", [])
-                has_nb = any(
-                    (item == "neighbors.txt") or
-                    (isinstance(item, dict) and item.get("file") == "neighbors.txt")
-                    for item in manifest_data["files"]
+                # Save neighbor list and update the run manifest
+                write_text_artifact(
+                    "\n".join(lines),
+                    "neighbors.txt",
+                    Path(last_session.output_dir),
+                    manifest_data,
+                    "Neighbors of the selected function from the previous search run.",
                 )
-                if not has_nb:
-                    manifest_data["files"].append({
-                        "file": "neighbors.txt",
-                        "description": "Neighbors of the selected function from the previous search run."
-                    })
                 with open(manifest_path, "w", encoding="utf-8") as mf:
                     json.dump(manifest_data, mf, indent=2)
             return last_session

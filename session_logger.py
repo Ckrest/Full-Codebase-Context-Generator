@@ -129,3 +129,35 @@ def log_summary_to_markdown(data: dict, path: str | Path) -> str:
         f.write("\n".join(lines) + "\n")
 
     return str(full_path)
+
+
+def write_text_artifact(
+    text: str,
+    filename: str,
+    run_dir: Path,
+    manifest: dict,
+    description: str,
+) -> str:
+    """Write ``text`` to ``run_dir/filename`` and record it in ``manifest``.
+
+    If the file is already listed in ``manifest['files']`` the description will
+    not be duplicated. The full path to the written file is returned.
+    """
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    file_path = run_dir / filename
+    if not text.endswith("\n"):
+        text += "\n"
+    with open(file_path, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+    manifest.setdefault("files", [])
+    exists = any(
+        (item == filename)
+        or (isinstance(item, dict) and item.get("file") == filename)
+        for item in manifest["files"]
+    )
+    if not exists:
+        manifest["files"].append({"file": filename, "description": description})
+
+    return str(file_path)
