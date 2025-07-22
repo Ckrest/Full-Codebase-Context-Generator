@@ -1,12 +1,12 @@
 import json
 from pathlib import Path
 from config import SETTINGS
-from lazy_loader import lazy_import
+from lazy_loader import safe_lazy_import
 
 
 def load_embedding_model(model_path: str | None):
     """Load a ``SentenceTransformer`` model or download a default."""
-    model_lib = lazy_import("sentence_transformers")
+    model_lib = safe_lazy_import("sentence_transformers")
     SentenceTransformer = model_lib.SentenceTransformer
     if not model_path:
         print(
@@ -42,10 +42,10 @@ def generate_embeddings(project_folder: str) -> None:
     out_w = SETTINGS["context"].get("outbound_weight", 1.0)
     in_w = SETTINGS["context"].get("inbound_weight", 1.0)
 
-    graph_mod = lazy_import("graph")
-    np = lazy_import("numpy")
-    faiss = lazy_import("faiss")
-    tqdm_mod = lazy_import("tqdm")
+    graph_mod = safe_lazy_import("graph")
+    np = safe_lazy_import("numpy")
+    faiss = safe_lazy_import("faiss")
+    tqdm_mod = safe_lazy_import("tqdm")
     tqdm = tqdm_mod.tqdm
 
     print("Encoding nodes...")

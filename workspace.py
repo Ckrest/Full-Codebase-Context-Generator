@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 import json
-from lazy_loader import lazy_import
+from lazy_loader import safe_lazy_import
 from config import SETTINGS
 
 
@@ -54,8 +54,8 @@ class DataWorkspace:
             )
         metadata = meta_raw.get("records", [])
 
-        embedding = lazy_import("embedding")
-        faiss = lazy_import("faiss")
+        embedding = safe_lazy_import("embedding")
+        faiss = safe_lazy_import("faiss")
         model = embedding.load_embedding_model(model_path)
         index = faiss.read_index(str(index_path))
         node_map = {n["id"]: n for n in graph.get("nodes", [])}

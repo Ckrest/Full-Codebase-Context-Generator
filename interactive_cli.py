@@ -5,7 +5,7 @@ from prompt_toolkit.history import FileHistory
 from typing import List
 
 from config import SETTINGS
-from lazy_loader import lazy_import
+from lazy_loader import safe_lazy_import
 
 HISTORY_DIR = Path.home() / ".full_context_history"
 HISTORY_DIR.mkdir(exist_ok=True)
@@ -57,13 +57,13 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
         "problem",
     )
 
-    llm = lazy_import("llm")
+    llm = safe_lazy_import("llm")
     llm_model = llm.get_llm_model()
     count = int(SETTINGS.get("query", {}).get("prompt_suggestion_count", 0))
     if count > 0:
         print("[⏳ Working...] Generating prompt suggestions")
         try:
-            query_mod = lazy_import("query")
+            query_mod = safe_lazy_import("query")
             _PROMPT_SUGGESTIONS[:] = query_mod.generate_prompt_suggestions(problem, count, llm_model)
             print("[✔ Done]")
         except Exception:
@@ -121,7 +121,7 @@ def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
             if choice == 1:
                 print("[⏳ Working...] Generating new prompt")
                 try:
-                    query_mod = lazy_import("query")
+                    query_mod = safe_lazy_import("query")
                     new_q = query_mod.generate_new_prompt(problem, suggestions, llm_model)
                     if new_q:
                         print("[✔ Done]")
