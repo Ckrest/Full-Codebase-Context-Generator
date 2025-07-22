@@ -53,7 +53,7 @@ pytest -q
   `token_estimate_ratio`, and `minified_js_detection` options
 - **visualization** – parameters controlling call graph rendering; set
   `auto_visualize` to `true` to automatically save a PNG after extraction
-- **embedding** – `embedding_dim`, `encoder_model_path`
+- **embedding** – `encoder_model_path`
 
 The extraction step relies on `crawl_directory` which automatically skips files
 listed in `.gitignore` and only processes paths with extensions from

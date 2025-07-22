@@ -83,8 +83,8 @@
       "auto_visualize": false
     },
   "embedding": {
-    "embedding_dim": 384,
-    "encoder_model_path": ""
+    "encoder_model_path": "",
+    "_deprecated_embedding_dim": "formerly controlled embedding size"
   },
   "logging": {
     "log_markdown": true,
