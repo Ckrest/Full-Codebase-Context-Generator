@@ -7,8 +7,10 @@ If the file does not exist it will be created automatically with default values.
 The `settings.example.json` file is kept in sync with the defaults whenever the
 tools run, so copying that file is an easy way to start customizing your own
 settings. The extractors handle Python, HTML, Markdown, JavaScript, and
-TypeScript source files using tree-sitter for the latter. JSON, YAML, and
-plain text files are also parsed so every piece of content can be searched.
+TypeScript source files using tree-sitter for the latter. CSS variants,
+modern JavaScript modules (`.mjs`, `.cjs`), `.tsx`, Vue, Svelte, and SVG files
+are also supported using text-based extraction. JSON, YAML, and plain text
+files are parsed so every piece of content can be searched.
 
 ### Installation
 
