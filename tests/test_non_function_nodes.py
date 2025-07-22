@@ -20,7 +20,7 @@ def test_non_function_nodes(tmp_path, monkeypatch):
     entries = lec.crawl_directory(str(tmp_path), respect_gitignore=False)
     G = lec.build_call_graph(entries)
     types = {d["type"] for _, d in G.nodes(data=True)}
-    assert {"function", "section", "html_section", "config_entry", "raw_text"} <= types
+    assert types == {"function"}
 
     project = "proj"
     out_dir = tmp_path / "out"
@@ -53,5 +53,5 @@ def test_non_function_nodes(tmp_path, monkeypatch):
     graph_data = json.loads((out_proj / "call_graph.json").read_text())
     id_to_type = {n["id"]: n["type"] for n in graph_data["nodes"]}
     meta_types = {id_to_type[m["id"]] for m in meta}
-    assert {"function", "section", "html_section", "config_entry", "raw_text"} <= meta_types
+    assert meta_types == {"function"}
 

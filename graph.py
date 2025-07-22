@@ -557,25 +557,31 @@ def infer_call_graph_roles(G: nx.DiGraph) -> None:
 
 
 def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
+    """Build a call graph using only function definitions."""
+
+    code_entries = [
+        e
+        for e in entries
+        if e.get("language") in {"python", "javascript", "typescript"}
+        and e.get("type") == "function"
+    ]
+
     G = nx.DiGraph()
     name_to_ids_global: Dict[str, List[str]] = {}
     name_to_ids_by_file: Dict[str, Dict[str, str]] = {}
     module_to_file: Dict[str, str] = {}
 
-    for entry in entries:
+    for entry in code_entries:
         if entry.get("name"):
             node_id = f"{entry['file_path']}::{entry['name']}"
         else:
             node_id = f"{entry['file_path']}::{entry.get('type','item')}::{entry.get('hash','')[:8]}"
         G.add_node(node_id, **entry)
-        if entry.get("type") == "function":
-            name_to_ids_global.setdefault(entry["name"], []).append(node_id)
-            name_to_ids_by_file.setdefault(entry["file_path"], {})[entry["name"]] = node_id
-            module_to_file[Path(entry["file_path"]).stem] = entry["file_path"]
+        name_to_ids_global.setdefault(entry["name"], []).append(node_id)
+        name_to_ids_by_file.setdefault(entry["file_path"], {})[entry["name"]] = node_id
+        module_to_file[Path(entry["file_path"]).stem] = entry["file_path"]
 
-    for entry in entries:
-        if entry.get("type") != "function":
-            continue
+    for entry in code_entries:
         caller_id = f"{entry['file_path']}::{entry['name']}"
         imports = entry.get("imports", {})
         callee_counts: Dict[str, int] = {}
