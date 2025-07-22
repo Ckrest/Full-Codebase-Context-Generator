@@ -2,11 +2,10 @@ import json
 from pathlib import Path
 import sys
 
-import faiss
 import numpy as np
 
 from llm import get_llm_model, call_llm, PROMPT_GEN_TEMPLATE, PROMPT_NEW_QUERY, get_example_json
-from embedding import load_embedding_model
+from workspace import DataWorkspace, QuerySession
 from spellcheck_utils import create_symspell_from_terms, correct_phrase
 from graph import expand_graph
 from prompt_builder import build_prompt, format_summary
@@ -95,13 +94,15 @@ def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
 
 
 def main(project_folder: str, problem: str | None = None, initial_query: str | None = None):
+    workspace = DataWorkspace.load(project_folder)
+    base_dir = workspace.base_dir
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
-    base_dir = Path(SETTINGS["paths"]["output_dir"]) / project_folder
+    top_k = SETTINGS["query"]["top_k_results"]
+
     print(f"📁 Using project: {base_dir}")
+    call_graph_path = base_dir / "call_graph.json"
     metadata_path = base_dir / "embedding_metadata.json"
     index_path = base_dir / "faiss.index"
-    call_graph_path = base_dir / "call_graph.json"
-    top_k = SETTINGS["query"]["top_k_results"]
 
     print("🔧 Running... Model, context, and settings info:")
     print(f"Encoder model: {model_path}")
@@ -110,14 +111,12 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
     print(f"Top-K results: {top_k}\n")
 
     print("🚀 Loading models and data...")
-    model = load_embedding_model(model_path)
+    model = workspace.model
     llm_model = get_llm_model()
-    index = faiss.read_index(str(index_path))
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        metadata = json.load(f)
-    with open(call_graph_path, "r", encoding="utf-8") as f:
-        graph = json.load(f)
-    node_map = {n["id"]: n for n in graph.get("nodes", [])}
+    index = workspace.index
+    metadata = workspace.metadata
+    graph = workspace.graph
+    node_map = workspace.node_map
 
     symspell = None
     if SETTINGS["query"].get("use_spellcheck"):
@@ -144,18 +143,18 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         except Exception:
             print("[❌ Failed]")
 
-    def run_search(query, last_indices=None):
+    def run_search(query, last_session: QuerySession | None = None):
         nonlocal last
         if query.startswith("neighbors"):
-            if not last_indices:
+            if not last_session:
                 print("No previous search results.")
-                return last_indices
+                return last_session
             try:
                 num = int(query.split()[1]) - 1
-                idx = last_indices[num]
+                idx = last_session.final_indices[num]
             except (ValueError, IndexError):
                 print("Usage: neighbors <result_number>")
-                return last_indices
+                return last_session
 
             meta = metadata[idx]
             nb_ids = expand_graph(
@@ -172,7 +171,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 node = node_map.get(nid, {})
                 print(f"- {node.get('name')} — {node.get('file_path')}")
             print()
-            return last_indices
+            return last_session
 
         queries = [correct_phrase(symspell, query)]
         sub_queries = []
@@ -262,7 +261,6 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             ((i, np.mean(ds)) for i, ds in all_scores.items()), key=lambda x: x[1]
         )
         final_indices = [i for i, _ in averaged[:top_k]]
-        last = final_indices
 
         print("\n🎯 Top Matches:")
         for rank, idx in enumerate(final_indices, start=1):
@@ -293,6 +291,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             node_map,
             save_path=str(base_dir / "last_summary.txt"),
             base_dir=SETTINGS.get("project_root"),
+            workspace=workspace,
         )
         print(summary)
         print()
@@ -316,6 +315,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 problem,
                 base_dir=SETTINGS.get("project_root"),
                 save_path=str(base_dir / "initial_prompt.txt"),
+                workspace=workspace,
             )
             print("[✔ Done]")
         except Exception:
@@ -400,11 +400,20 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             json_file = log_session_to_json(log_data, "logs")
             print(f"✔ Saved {json_file}")
 
-        return last
+        session = QuerySession(
+            problem=problem or "",
+            queries=queries,
+            subquery_data=subquery_data,
+            function_matches=function_index,
+            final_indices=final_indices,
+            llm_response=final_context,
+        )
+        last = session
+        return session
 
     last = None
     if initial_query:
-        run_search(initial_query, last)
+        last = run_search(initial_query, last)
         return
 
     from interactive_cli import ask_search_prompt

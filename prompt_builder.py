@@ -2,6 +2,8 @@ from pathlib import Path
 import json
 from typing import Iterable, Dict, Any, Optional
 
+from workspace import DataWorkspace
+
 
 def _truncate_code(code: str, max_lines: int = 40) -> str:
     """Truncate code if longer than ``max_lines`` keeping the head and tail."""
@@ -14,13 +16,19 @@ def _truncate_code(code: str, max_lines: int = 40) -> str:
 
 def format_summary(
     indices: Iterable[int],
-    metadata: Iterable[Dict[str, Any]],
-    node_map: Dict[str, Dict[str, Any]],
+    metadata: Iterable[Dict[str, Any]] | None = None,
+    node_map: Dict[str, Dict[str, Any]] | None = None,
     *,
     save_path: Optional[str] = None,
     base_dir: Optional[str] = None,
+    workspace: Optional[DataWorkspace] = None,
 ) -> str:
     """Return formatted summaries for the selected functions."""
+    if workspace is not None:
+        metadata = workspace.metadata
+        node_map = workspace.node_map
+    if metadata is None or node_map is None:
+        raise ValueError("metadata and node_map must be provided")
     idx_list = list(indices)
     total = len(idx_list)
     blocks: list[str] = []
@@ -125,16 +133,29 @@ def format_summary(
     return output
 
 
-def build_prompt(metadata_path, graph_path, indices, user_question, base_dir=None, save_path=None):
+def build_prompt(
+    metadata_path,
+    graph_path,
+    indices,
+    user_question,
+    base_dir=None,
+    save_path=None,
+    workspace: Optional[DataWorkspace] = None,
+):
     """
     Given FAISS result indices, metadata, and call graph, format a Gemini-ready prompt.
     """
-    with open(metadata_path, "r", encoding="utf-8") as f:
-        metadata = json.load(f)
-    with open(graph_path, "r", encoding="utf-8") as f:
-        graph = json.load(f)
+    if workspace is not None:
+        metadata = workspace.metadata
+        graph = workspace.graph
+        node_map = workspace.node_map
+    else:
+        with open(metadata_path, "r", encoding="utf-8") as f:
+            metadata = json.load(f)
+        with open(graph_path, "r", encoding="utf-8") as f:
+            graph = json.load(f)
 
-    node_map = {n["id"]: n for n in graph.get("nodes", [])}
+        node_map = {n["id"]: n for n in graph.get("nodes", [])}
     blocks = ["# QUESTION", user_question.strip(), "", f"# FUNCTION CONTEXT (Top {len(indices)} Matches)"]
     blocks_full = ["# QUESTION", user_question.strip(), "", f"# FUNCTION CONTEXT (Top {len(indices)} Matches)"]
 
