@@ -41,10 +41,13 @@ def format_summary(
         file_path = node.get("file_path", meta.get("file"))
         display_path = file_path
         if base_dir:
-            try:
-                display_path = str(Path(file_path).resolve().relative_to(Path(base_dir).resolve()))
-            except Exception:
-                pass
+            base = Path(base_dir)
+            p = Path(file_path)
+            if p.is_absolute():
+                try:
+                    display_path = str(p.relative_to(base))
+                except Exception:
+                    display_path = str(p.name)
         lang = node.get("language", "unknown")
         tokens = node.get("estimated_tokens", 0)
 
@@ -163,10 +166,13 @@ def build_prompt(
         file_path = node.get("file_path", meta.get("file", "unknown"))
         display_path = file_path
         if base_dir:
-            try:
-                display_path = str(Path(file_path).resolve().relative_to(Path(base_dir).resolve()))
-            except Exception:
-                pass
+            base = Path(base_dir)
+            p = Path(file_path)
+            if p.is_absolute():
+                try:
+                    display_path = str(p.relative_to(base))
+                except Exception:
+                    display_path = str(p.name)
         comments = node.get("comments", [])[:5]
         calls = [node_map.get(cid, {}).get("name", cid) for cid in node.get("calls", [])]
         called_by = [node_map.get(cid, {}).get("name", cid) for cid in node.get("called_by", [])]
