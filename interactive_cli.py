@@ -74,12 +74,20 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
     return path, problem, prompt
 
 
-def after_generation_event() -> bool:
+def after_generation_event() -> int:
+    print("\n🔄 What would you like to do next?")
+    print("  [1] Start over with a new project path")
+    print("  [2] Enter a new problem statement")
+    print("  [3] Try another search prompt")
     ans = ask_with_history(
-        "🔄 Would you like to run another search from scratch? [y/N] ",
+        "Enter a number or press Enter to exit: ",
         "after_generation",
-    ).strip().lower()
-    return ans.startswith("y")
+    ).strip()
+    if ans.isdigit():
+        choice = int(ans)
+        if choice in (1, 2, 3):
+            return choice
+    return 0
 
 
 def ask_problem() -> str:

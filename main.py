@@ -112,15 +112,23 @@ def main() -> None:
         run_visualize(args.project)
         return
 
-    while True:
-        if args.path:
-            start_values = Path(args.path), None, None
-            args.path = None
-        else:
-            cli = lazy_import("interactive_cli")
-            start_values = cli.start_event()
+    cli = lazy_import("interactive_cli")
+    project_path: Path | None = Path(args.path).resolve() if args.path else None
+    problem: str | None = None
+    prompt: str | None = None
+    next_step = 2 if project_path is not None else 1
+    args.path = None
 
-        project_path, problem, prompt = start_values
+    while True:
+        if next_step == 1 or project_path is None:
+            project_path, problem, prompt = cli.start_event()
+        elif next_step == 2:
+            _, problem, prompt = cli.start_event(project_path)
+        elif next_step == 3:
+            llm = lazy_import("llm")
+            llm_model = llm.get_llm_model()
+            prompt = cli.ask_search_prompt(cli.get_prompt_suggestions(), problem, llm_model)
+
         project_name = project_path.name
         SETTINGS["default_project"] = project_name
         SETTINGS["project_root"] = str(project_path.resolve())
@@ -143,8 +151,9 @@ def main() -> None:
             logger.info("Using existing embeddings at %s", embeddings_path)
 
         run_query(project_name, problem, prompt)
-        cli = lazy_import("interactive_cli")
-        if not cli.after_generation_event():
+
+        next_step = cli.after_generation_event()
+        if not next_step:
             break
 
 
