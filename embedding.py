@@ -47,9 +47,9 @@ def generate_embeddings(project_folder: str) -> None:
     tqdm_mod = lazy_import("tqdm")
     tqdm = tqdm_mod.tqdm
 
-    print("Encoding function nodes...")
+    print("Encoding nodes...")
     for node in tqdm(nodes, desc="Gathering context", unit="node"):
-        name = node.get("name", "")
+        name = node.get("name") or node.get("type", "")
         context = graph_mod.gather_context(
             graph,
             node["id"],

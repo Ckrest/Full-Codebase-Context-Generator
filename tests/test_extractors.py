@@ -154,6 +154,25 @@ const qux = async (z) => {
     assert "foo" in baz_entry["called_functions"]
 
 
+def test_extract_from_typescript(tmp_path):
+    code = """
+function foo(a: number) {
+    return a + 1;
+}
+
+const bar = (x: number) => {
+    return foo(x);
+};
+"""
+    f = tmp_path / "sample.ts"
+    f.write_text(code)
+    results = lec.extract_from_typescript(str(f))
+    names = {r["name"] for r in results}
+    assert names == {"foo", "bar"}
+    bar_entry = next(r for r in results if r["name"] == "bar")
+    assert "foo" in bar_entry["called_functions"]
+
+
 def test_extract_from_json(tmp_path):
     data = {"a": 1, "b": {"c": 2}}
     f = tmp_path / "config.json"

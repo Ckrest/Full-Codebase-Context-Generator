@@ -39,6 +39,7 @@ def estimate_tokens(content: str) -> int:
 
 
 JS_PARSER: Parser = get_parser("javascript")
+TS_PARSER: Parser = get_parser("typescript")
 
 
 def looks_minified_js(
@@ -269,6 +270,93 @@ def extract_from_javascript(filepath: str) -> List[Dict]:
     return results
 
 
+def extract_from_typescript(filepath: str) -> List[Dict]:
+    """Parse TypeScript files using tree-sitter."""
+    results = []
+    if "min." in filepath.lower() or looks_minified_js(filepath):
+        logger.info(f"Skipping minified TypeScript file: {filepath}")
+        return results
+
+    try:
+        data = Path(filepath).read_bytes()
+    except Exception as e:
+        logger.warning(f"Failed to read TS {filepath}: {e}")
+        return results
+
+    source = data.decode("utf-8", errors="ignore")
+    lines = source.splitlines()
+    tree = TS_PARSER.parse(data)
+
+    def get_code(start_byte: int, end_byte: int) -> str:
+        return data[start_byte:end_byte].decode("utf-8", errors="ignore")
+
+    def gather_comments(start_line: int) -> List[str]:
+        return [
+            lines[i].strip()
+            for i in range(max(0, start_line - COMMENT_LOOKBACK), start_line)
+            if lines[i].strip().startswith("//")
+        ]
+
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.children)
+
+        if node.type == "function_declaration":
+            name_node = node.child_by_field_name("name")
+            name = (
+                name_node.text.decode("utf-8", "ignore")
+                if name_node and name_node.text
+                else "anonymous"
+            )
+            start_line = node.start_point[0]
+            code = get_code(node.start_byte, node.end_byte)
+            comments = gather_comments(start_line)
+            calls = re.findall(r"\b([A-Za-z_]\w*)\s*\(", code)
+            results.append(
+                {
+                    "file_path": filepath,
+                    "language": "typescript",
+                    "type": "function",
+                    "name": name,
+                    "code": code,
+                    "comments": comments,
+                    "called_functions": calls,
+                    "hash": hash_content(code),
+                    "estimated_tokens": estimate_tokens(code),
+                }
+            )
+
+        elif node.type == "variable_declarator":
+            value = node.child_by_field_name("value")
+            if value and value.type in {"arrow_function", "function_expression"}:
+                name_node = node.child_by_field_name("name")
+                name = (
+                    name_node.text.decode("utf-8", "ignore")
+                    if name_node and name_node.text
+                    else "anonymous"
+                )
+                start_line = value.start_point[0]
+                code = get_code(value.start_byte, value.end_byte)
+                comments = gather_comments(start_line)
+                calls = re.findall(r"\b([A-Za-z_]\w*)\s*\(", code)
+                results.append(
+                    {
+                        "file_path": filepath,
+                        "language": "typescript",
+                        "type": "function",
+                        "name": name,
+                        "code": code,
+                        "comments": comments,
+                        "called_functions": calls,
+                        "hash": hash_content(code),
+                        "estimated_tokens": estimate_tokens(code),
+                    }
+                )
+
+    return results
+
+
 def extract_from_markdown(filepath: str) -> List[Dict]:
     results = []
     try:
@@ -378,6 +466,7 @@ def extract_from_txt(filepath: str) -> List[Dict]:
 EXTENSION_MAP = {
     ".py": extract_from_python,
     ".js": extract_from_javascript,
+    ".ts": extract_from_typescript,
     ".html": extract_from_html,
     ".htm": extract_from_html,
     ".md": extract_from_markdown,
@@ -465,13 +554,15 @@ def build_call_graph(entries: List[Dict]) -> nx.DiGraph:
     module_to_file: Dict[str, str] = {}
 
     for entry in entries:
-        if entry.get("type") != "function":
-            continue
-        func_id = f"{entry['file_path']}::{entry['name']}"
-        G.add_node(func_id, **entry)
-        name_to_ids_global.setdefault(entry["name"], []).append(func_id)
-        name_to_ids_by_file.setdefault(entry["file_path"], {})[entry["name"]] = func_id
-        module_to_file[Path(entry["file_path"]).stem] = entry["file_path"]
+        if entry.get("name"):
+            node_id = f"{entry['file_path']}::{entry['name']}"
+        else:
+            node_id = f"{entry['file_path']}::{entry.get('type','item')}::{entry.get('hash','')[:8]}"
+        G.add_node(node_id, **entry)
+        if entry.get("type") == "function":
+            name_to_ids_global.setdefault(entry["name"], []).append(node_id)
+            name_to_ids_by_file.setdefault(entry["file_path"], {})[entry["name"]] = node_id
+            module_to_file[Path(entry["file_path"]).stem] = entry["file_path"]
 
     for entry in entries:
         if entry.get("type") != "function":

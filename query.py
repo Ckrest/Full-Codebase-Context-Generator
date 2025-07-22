@@ -223,6 +223,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 meta = metadata[int(idx)]
                 node = node_map.get(meta.get("id"), {})
                 name = node.get("name", meta.get("name"))
+                node_id = meta.get("id")
+                key = name if name else node_id
                 file_path = node.get("file_path", meta.get("file"))
 
                 entry = {
@@ -234,10 +236,10 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 subquery_data[sq_idx]["functions"].append(entry)
 
                 func_meta = function_index.setdefault(
-                    name,
+                    key,
                     {
                         "file": file_path,
-                        "id": meta.get("id"),
+                        "id": node_id,
                         "subqueries": [],
                     },
                 )
@@ -272,6 +274,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             meta = metadata[idx]
             node = node_map.get(meta.get("id"), {})
             name = node.get("name", meta.get("name"))
+            display_name = name or node.get("type", "item")
             file_path = node.get("file_path", meta.get("file"))
 
             best_score = None
@@ -285,7 +288,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
             score_str = f"{best_score:.3f}" if best_score is not None else "n/a"
             print("-" * 40)
-            print(f"{rank}. {name} ({file_path})")
+            print(f"{rank}. {display_name} ({file_path})")
             print(f"Match Score: {score_str}")
             if len(subquery_data) > 1:
                 print(f"Matched Query: {best_text}")
@@ -297,7 +300,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             meta = metadata[idx]
             node = node_map.get(meta.get("id"), {})
             name = node.get("name", meta.get("name"))
-            score_info = relevance.get(name, {})
+            key = name if name else meta.get("id")
+            score_info = relevance.get(key, {})
 
             callers = []
             for edge in graph.get("edges", []):
@@ -323,6 +327,7 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
             full_function_objects.append({
                 "function_name": name,
+                "type": node.get("type"),
                 "file": node.get("file_path", meta.get("file")),
                 "class": node.get("class"),
                 "relevance_scores": score_info,
@@ -336,9 +341,9 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
                 "code": node.get("code", ""),
             })
 
-        print("\n🎯 Function Summary:")
+        print("\n🎯 Item Summary:")
         for func in full_function_objects:
-            name = func["function_name"]
+            name = func["function_name"] or func.get("type", "item")
             score = func.get("relevance_scores", {}).get("avg_score", 0.0)
             role = func.get("call_graph_role", "unknown")
             print(f"- {name} | Score: {score:.3f} | Role: {role}")
@@ -356,11 +361,11 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         print()
 
         with open(results_file, "a", encoding="utf-8") as f:
-            f.write("Functions returned:\n")
+            f.write("Items returned:\n")
             for i in final_indices:
                 meta = metadata[i]
                 node = node_map.get(meta.get("id"), {})
-                name = node.get("name", meta.get("name"))
+                name = node.get("name", meta.get("name")) or node.get("type", "item")
                 f.write(f"- {name}\n")
             f.write("\n")
         print(f"🗃 Output saved to: {results_file}")
@@ -400,8 +405,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
             final_context = ""
 
         functions_list = []
-        for name, scores in relevance.items():
-            node_info = function_index.get(name)
+        for key, scores in relevance.items():
+            node_info = function_index.get(key)
             node = node_map.get(node_info.get("id")) if node_info else None
             if node:
                 functions_list.append(

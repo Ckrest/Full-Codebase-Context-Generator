@@ -41,8 +41,9 @@ def format_function_entry(node: dict, relevance: dict, graph: dict) -> dict:
             "count": count,
         })
 
+    name = node.get("name") or node.get("type")
     return {
-        "function_name": node.get("name"),
+        "function_name": name,
         "file": node.get("file_path"),
         "class": node.get("class"),
         "relevance_scores": relevance,
