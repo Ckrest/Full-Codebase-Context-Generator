@@ -3,7 +3,9 @@
   "LLM_model": {
     "api_key": "",
     "api_type": "gemini",
-    "local_path": ""
+    "local_path": "",
+    "model_type": "causal",
+    "device": "cpu"
   },
   "api_settings": {
     "temperature": 0.6,

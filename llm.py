@@ -46,11 +46,27 @@ Respond only with the query string.
 # Only Gemini is supported right now
 
 def get_llm_model():
-    """Load the LLM client based on settings. Defaults to the Gemini API."""
+    """Load the LLM client based on settings. Supports Gemini or a local model."""
     cfg = SETTINGS.get("LLM_model", {})
     api_key = cfg.get("api_key", "")
     api_type = cfg.get("api_type", "gemini").lower()
     local_path = cfg.get("local_path", "")
+    model_type = cfg.get("model_type", "causal")
+    device = cfg.get("device", "cpu")
+
+    if local_path:
+        trans = lazy_import("transformers")
+        torch = lazy_import("torch")
+        try:
+            tokenizer = trans.AutoTokenizer.from_pretrained(local_path)
+            model_cls = trans.AutoModelForCausalLM if model_type == "causal" else trans.AutoModel
+            model = model_cls.from_pretrained(local_path)
+            model.to(device)
+            model.eval()
+            return {"model": model, "tokenizer": tokenizer, "device": device}
+        except Exception as exc:
+            print(f"❌ Failed to load local model from {local_path}: {exc}")
+            return None
 
     if api_key:
         if api_type != "gemini":
@@ -58,9 +74,7 @@ def get_llm_model():
         genai = lazy_import("google.generativeai")
         client = genai.Client(api_key=api_key)
         return client
-    if local_path:
-        print(f"⚠️ Local LLM path '{local_path}' provided but loading is not implemented.")
-        return None
+
     print("🔑 Please set your Gemini API key in settings.json. Free as of 7-21-2025 See https://ai.google.dev/gemini-api")
     return None
 
@@ -79,6 +93,25 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None)
     if max_tokens is None:
         max_tokens = api_cfg.get("max_output_tokens", 5000)
     top_p = api_cfg.get("top_p", 1.0)
+
+    if isinstance(client, dict) and "model" in client and "tokenizer" in client:
+        torch = lazy_import("torch")
+        tokenizer = client["tokenizer"]
+        model = client["model"]
+        device = client.get("device", "cpu")
+        input_ids = tokenizer.encode(prompt_text, return_tensors="pt").to(device)
+        with torch.no_grad():
+            output_ids = model.generate(
+                input_ids,
+                max_new_tokens=max_tokens,
+                do_sample=temperature > 0,
+                temperature=temperature,
+                top_p=top_p,
+            )
+        text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        if text.startswith(prompt_text):
+            text = text[len(prompt_text):]
+        return text.strip()
 
     types = lazy_import("google.generativeai.types")
     try:

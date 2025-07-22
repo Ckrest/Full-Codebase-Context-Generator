@@ -41,7 +41,7 @@ pytest -q
 
 - Settings are grouped into categories for easier navigation:
 
-- **LLM_model** – `api_key`, `api_type`, `local_path`
+- **LLM_model** – `api_key`, `api_type`, `local_path`, `model_type`, `device`
 - **api_settings** – `temperature`, `top_p`, `max_output_tokens`
  - **encoder_model_path** – location of the sentence transformer model. If left
    blank, the small `sentence-transformers/all-MiniLM-L6-v2` model will be
