@@ -4,14 +4,14 @@ from pathlib import Path
 import json
 
 from config import SETTINGS, reload_settings
-from lazy_loader import lazy_import
+from lazy_loader import safe_lazy_import
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 def run_extract(project_path: Path, project_name: str, visualize: bool = False) -> None:
-    graph_mod = lazy_import("graph")
+    graph_mod = safe_lazy_import("graph")
     logger.info("Crawling source files in %s", project_path)
     entries = graph_mod.crawl_directory(str(project_path), respect_gitignore=True)
     logger.info("Building call graph...")
@@ -30,18 +30,18 @@ def run_extract(project_path: Path, project_name: str, visualize: bool = False) 
 
 def run_generate_embeddings(project_name: str) -> None:
     logger.info("Generating embeddings for %s", project_name)
-    embedding = lazy_import("embedding")
+    embedding = safe_lazy_import("embedding")
     embedding.generate_embeddings(project_name)
 
 
 def run_query(project_name: str, problem: str | None, prompt: str | None) -> None:
     logger.info("Launching query tool...")
-    query_mod = lazy_import("query")
+    query_mod = safe_lazy_import("query")
     query_mod.main(project_name, problem, initial_query=prompt)
 
 
 def run_inspect(project_name: str) -> None:
-    graph_mod = lazy_import("graph")
+    graph_mod = safe_lazy_import("graph")
     extracted_root = Path(SETTINGS["paths"]["output_dir"])
     selected = extracted_root / project_name
     call_graph_path = selected / "call_graph.json"
@@ -53,7 +53,7 @@ def run_inspect(project_name: str) -> None:
 
 
 def run_visualize(project_name: str) -> None:
-    graph_mod = lazy_import("graph")
+    graph_mod = safe_lazy_import("graph")
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     call_graph_path = out_dir / "call_graph.json"
     if not call_graph_path.exists():
@@ -112,7 +112,7 @@ def main() -> None:
         run_visualize(args.project)
         return
 
-    cli = lazy_import("interactive_cli")
+    cli = safe_lazy_import("interactive_cli")
     project_path: Path | None = Path(args.path).resolve() if args.path else None
     problem: str | None = None
     prompt: str | None = None
@@ -125,7 +125,7 @@ def main() -> None:
         elif next_step == 2:
             _, problem, prompt = cli.start_event(project_path)
         elif next_step == 3:
-            llm = lazy_import("llm")
+            llm = safe_lazy_import("llm")
             llm_model = llm.get_llm_model()
             prompt = cli.ask_search_prompt(cli.get_prompt_suggestions(), problem, llm_model)
 

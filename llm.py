@@ -1,5 +1,5 @@
 from config import SETTINGS
-from lazy_loader import lazy_import
+from lazy_loader import safe_lazy_import
 import json
 from dataclasses import dataclass
 
@@ -57,7 +57,7 @@ class LocalLLM:
 
     def generate(self, text: str, *, temperature: float, max_tokens: int, top_p: float) -> str:
         """Generate text using the local model."""
-        torch = lazy_import("torch")
+        torch = safe_lazy_import("torch")
         inputs = self.tokenizer(text, return_tensors="pt")
         for k, v in inputs.items():
             inputs[k] = v.to(self.device)
@@ -81,14 +81,14 @@ def get_llm_model():
     device = cfg.get("device", "auto")
 
     if local_path:
-        transformers = lazy_import("transformers")
+        transformers = safe_lazy_import("transformers")
         tokenizer = transformers.AutoTokenizer.from_pretrained(local_path)
         if model_type == "auto":
             model_cls = transformers.AutoModelForCausalLM
         else:
             model_cls = getattr(transformers, model_type)
         model = model_cls.from_pretrained(local_path)
-        torch = lazy_import("torch")
+        torch = safe_lazy_import("torch")
         if device == "auto":
             device = "cuda" if torch.cuda.is_available() else "cpu"
         model.to(device)
@@ -98,7 +98,7 @@ def get_llm_model():
     if api_key:
         if api_type != "gemini":
             raise ValueError(f"Unsupported API type: {api_type}")
-        genai = lazy_import("google.genai")
+        genai = safe_lazy_import("google.genai")
         client = genai.Client(api_key=api_key)
         return client
     print("🔑 Please set your Gemini API key in settings.json. Free as of 7-21-2025 See https://ai.google.dev/gemini-api")
@@ -141,7 +141,7 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None,
         except Exception as e:
             return f"💥 Local LLM query failed: {e}"
 
-    types = lazy_import("google.genai.types")
+    types = safe_lazy_import("google.genai.types")
     try:
         response = client.models.generate_content(
             model="gemini-2.5-pro",
