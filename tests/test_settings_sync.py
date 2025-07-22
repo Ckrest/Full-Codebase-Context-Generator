@@ -12,7 +12,10 @@ def test_settings_example_matches_defaults(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     ensure_example_settings()
     data = json.loads(example.read_text())
-    assert data == {"_comment": "Copy this file to settings.json and modify as needed", **DEFAULT_SETTINGS}
+    expected = {"_comment": "Copy this file to settings.json and modify as needed"}
+    expected.update(json.loads(json.dumps(DEFAULT_SETTINGS)))
+    expected["embedding"]["_deprecated_embedding_dim"] = "formerly controlled embedding size"
+    assert data == expected
 
 
 def test_api_settings_defaults():

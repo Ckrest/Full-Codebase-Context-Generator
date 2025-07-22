@@ -89,7 +89,6 @@ DEFAULT_SETTINGS = {
         "auto_visualize": False,
     },
     "embedding": {
-        "embedding_dim": 384,
         "encoder_model_path": "",
     },
     "logging": {
@@ -109,6 +108,10 @@ def ensure_example_settings():
     example_path = "settings.example.json"
     template = {"_comment": "Copy this file to settings.json and modify as needed"}
     template.update(DEFAULT_SETTINGS)
+    # Mark removed options so users know they are deprecated
+    template.setdefault("embedding", {})["_deprecated_embedding_dim"] = (
+        "formerly controlled embedding size"
+    )
 
     current = {}
     if os.path.exists(example_path):
