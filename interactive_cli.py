@@ -2,15 +2,13 @@ from pathlib import Path
 import json
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
-from typing import List
-
 from config import SETTINGS
 from lazy_loader import safe_lazy_import
 
 HISTORY_DIR = Path.home() / ".full_context_history"
 HISTORY_DIR.mkdir(exist_ok=True)
 _SESSIONS: dict[str, PromptSession] = {}
-_PROMPT_SUGGESTIONS: List[str] = []
+
 
 
 def _get_session(key: str) -> PromptSession:
@@ -32,11 +30,7 @@ def ask_with_history(prompt: str, key: str) -> str:
         return answer
 
 
-def get_prompt_suggestions() -> List[str]:
-    return _PROMPT_SUGGESTIONS
-
-
-def start_event(path: Path | None = None) -> tuple[Path, str, str]:
+def start_event(path: Path | None = None) -> tuple[Path, str]:
     while not path:
         p = ask_with_history(
             "Enter path to your project folder (absolute or relative). Type 'settings' to configure, or press Enter to cancel:\n> ",
@@ -57,35 +51,20 @@ def start_event(path: Path | None = None) -> tuple[Path, str, str]:
         "problem",
     )
 
-    llm = safe_lazy_import("llm")
-    llm_model = llm.get_llm_model()
-    count = int(SETTINGS.get("query", {}).get("prompt_suggestion_count", 0))
-    if count > 0:
-        print("[⏳ Working...] Generating prompt suggestions")
-        try:
-            query_mod = safe_lazy_import("query")
-            _PROMPT_SUGGESTIONS[:] = query_mod.generate_prompt_suggestions(problem, count, llm_model)
-            print("[✔ Done]")
-        except Exception:
-            print("[❌ Failed]")
-            _PROMPT_SUGGESTIONS[:] = []
-
-    prompt = ask_search_prompt(_PROMPT_SUGGESTIONS, problem, llm_model)
-    return path, problem, prompt
+    return path, problem
 
 
 def after_generation_event() -> int:
     print("\n🔄 What would you like to do next?")
     print("  [1] Start over with a new project path")
     print("  [2] Enter a new problem statement")
-    print("  [3] Try another search prompt")
     ans = ask_with_history(
         "Enter a number or press Enter to exit: ",
         "after_generation",
     ).strip()
     if ans.isdigit():
         choice = int(ans)
-        if choice in (1, 2, 3):
+        if choice in (1, 2):
             return choice
     return 0
 
@@ -103,42 +82,6 @@ def ask_project_folder() -> str:
         "project_folder",
     ).strip()
 
-
-def ask_search_prompt(suggestions: List[str], problem: str, llm_model) -> str:
-    while True:
-        print("\n🎯 How do you want to search the codebase? Choose an option:")
-        print("  [1] Generate a new search prompt")
-        print("  [2] Use your full problem statement")
-        for i, q in enumerate(suggestions, start=3):
-            print(f"  [{i}] {q}")
-
-        ans = ask_with_history(
-            "Type a prompt or a number:",
-            "prompt",
-        )
-        if ans.isdigit():
-            choice = int(ans)
-            if choice == 1:
-                print("[⏳ Working...] Generating new prompt")
-                try:
-                    query_mod = safe_lazy_import("query")
-                    new_q = query_mod.generate_new_prompt(problem, suggestions, llm_model)
-                    if new_q:
-                        print("[✔ Done]")
-                        print(f"Generated prompt: {new_q}")
-                        suggestions.append(new_q)
-                        return new_q
-                    print("[❌ Failed]")
-                except Exception:
-                    print("[❌ Failed]")
-                continue
-            if choice == 2:
-                return problem
-            if 3 <= choice < 3 + len(suggestions):
-                return suggestions[choice - 3]
-            print("⚠️ Invalid selection. Enter a number from the list, 'exit', or 'neighbors <n>'.")
-            continue
-        return ans
 
 
 def change_settings_event() -> None:

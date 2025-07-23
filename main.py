@@ -34,10 +34,10 @@ def run_generate_embeddings(project_name: str) -> None:
     embedding.generate_embeddings(project_name)
 
 
-def run_query(project_name: str, problem: str | None, prompt: str | None) -> None:
+def run_query(project_name: str, problem: str | None) -> None:
     logger.info("Launching query tool...")
     query_mod = safe_lazy_import("query")
-    query_mod.main(project_name, problem, initial_query=prompt)
+    query_mod.main(project_name, problem)
 
 
 def run_inspect(project_name: str) -> None:
@@ -79,7 +79,6 @@ def main() -> None:
     p_query = sub.add_parser("query", help="Search embeddings")
     p_query.add_argument("project")
     p_query.add_argument("--problem")
-    p_query.add_argument("--prompt")
 
     p_inspect = sub.add_parser("inspect", help="Inspect call graph")
     p_inspect.add_argument("project")
@@ -103,7 +102,7 @@ def main() -> None:
         run_generate_embeddings(args.project)
         return
     if args.cmd == "query":
-        run_query(args.project, args.problem, args.prompt)
+        run_query(args.project, args.problem)
         return
     if args.cmd == "inspect":
         run_inspect(args.project)
@@ -115,19 +114,14 @@ def main() -> None:
     cli = safe_lazy_import("interactive_cli")
     project_path: Path | None = Path(args.path).resolve() if args.path else None
     problem: str | None = None
-    prompt: str | None = None
     next_step = 2 if project_path is not None else 1
     args.path = None
 
     while True:
         if next_step == 1 or project_path is None:
-            project_path, problem, prompt = cli.start_event()
+            project_path, problem = cli.start_event()
         elif next_step == 2:
-            _, problem, prompt = cli.start_event(project_path)
-        elif next_step == 3:
-            llm = safe_lazy_import("llm")
-            llm_model = llm.get_llm_model()
-            prompt = cli.ask_search_prompt(cli.get_prompt_suggestions(), problem, llm_model)
+            _, problem = cli.start_event(project_path)
 
         project_name = project_path.name
         SETTINGS["default_project"] = project_name
@@ -150,7 +144,7 @@ def main() -> None:
         else:
             logger.info("Using existing embeddings at %s", embeddings_path)
 
-        run_query(project_name, problem, prompt)
+        run_query(project_name, problem)
 
         next_step = cli.after_generation_event()
         if not next_step:
