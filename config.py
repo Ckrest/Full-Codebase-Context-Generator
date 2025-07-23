@@ -93,7 +93,6 @@ DEFAULT_SETTINGS = {
     "logging": {
         "log_markdown": True,
         "log_json": True,
-        "track_duplicates": True,
         "max_functions_to_log": 100,
     },
 }
@@ -102,43 +101,7 @@ DEFAULT_SETTINGS = {
 SETTINGS = {}
 
 
-def ensure_example_settings():
-    """Synchronize settings.example.json with DEFAULT_SETTINGS."""
-    example_path = "settings.example.json"
-    template = {"_comment": "Copy this file to settings.json and modify as needed"}
-    template.update(DEFAULT_SETTINGS)
-    # Mark removed options so users know they are deprecated
-    template.setdefault("embedding", {})["_deprecated_embedding_dim"] = (
-        "formerly controlled embedding size"
-    )
-
-    current = {}
-    if os.path.exists(example_path):
-        try:
-            with open(example_path, "r", encoding="utf-8") as f:
-                current = json.load(f)
-        except (json.JSONDecodeError, IOError):
-            current = {}
-
-    if current != template:
-        with open(example_path, "w", encoding="utf-8") as f:
-            json.dump(template, f, indent=2)
-            f.write("\n")
-        logger.info("Updated %s with default settings", example_path)
-
-
-def _fix_paths(content: str) -> str:
-    path_pattern = re.compile(
-        r'("(?:[a-zA-Z0-9_]*_)?(?:path|dir|root|model|output|folder|file|location|destination)(?:_[a-zA-Z0-9_]*)?"\s*:\s*")([^"]*)(")'
-    )
-
-    def path_replacer(match):
-        pre_value, path_value, post_value = match.groups()
-        normalized = path_value.replace('\\\\', '/').replace('\\', '/')
-        fixed_path = normalized.replace('/', '\\\\')
-        return f"{pre_value}{fixed_path}{post_value}"
-
-    return path_pattern.sub(path_replacer, content)
+from settings_setup import ensure_example_settings, fix_paths
 
 
 def load_settings() -> dict:
@@ -156,7 +119,7 @@ def load_settings() -> dict:
             try:
                 with open(settings_path, "r", encoding="utf-8") as f_read:
                     content = f_read.read()
-                fixed_content = _fix_paths(content)
+                fixed_content = fix_paths(content)
                 settings = json.loads(fixed_content)
                 logger.info("Successfully loaded settings.json after auto-fixing paths.")
             except (json.JSONDecodeError, IOError) as e2:

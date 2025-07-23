@@ -27,7 +27,6 @@ EXCLUDE_DIRS = set(SETTINGS["extraction"]["exclude_dirs"])
 COMMENT_LOOKBACK = SETTINGS["extraction"].get("comment_lookback_lines", 3)
 TOKEN_ESTIMATE_RATIO = SETTINGS["extraction"].get("token_estimate_ratio", 0.75)
 MINIFIED_JS = SETTINGS["extraction"].get("minified_js_detection", {})
-VIS_SETTINGS = SETTINGS.get("visualization", {})
 
 
 def hash_content(content: str) -> str:
@@ -38,9 +37,6 @@ def estimate_tokens(content: str) -> int:
     return int(len(content.split()) * TOKEN_ESTIMATE_RATIO)
 
 
-def sanitize_label(label: str) -> str:
-    """Escape dollar signs to prevent mathtext parsing errors."""
-    return label.replace("$", r"\$")
 
 
 JS_PARSER: Parser = get_parser("javascript")
@@ -649,20 +645,21 @@ def save_graph_json(graph: nx.DiGraph, path: Path):
 
 
 def render_call_graph_image(graph: nx.DiGraph, path: Path):
-    plt.figure(figsize=tuple(VIS_SETTINGS.get("figsize", [12, 10])))
+    vis = SETTINGS.get("visualization", {})
+    plt.figure(figsize=tuple(vis.get("figsize", [12, 10])))
     pos = nx.spring_layout(
         graph,
-        k=VIS_SETTINGS.get("spring_layout_k", 0.5),
-        iterations=VIS_SETTINGS.get("spring_layout_iterations", 20),
+        k=vis.get("spring_layout_k", 0.5),
+        iterations=vis.get("spring_layout_iterations", 20),
     )
     nx.draw(
         graph,
         pos,
-        labels={n: sanitize_label(n.split("::")[-1]) for n in graph.nodes},
+        labels={n: n.split("::")[-1].replace("$", r"\$") for n in graph.nodes},
         with_labels=True,
-        node_size=VIS_SETTINGS.get("node_size", 1500),
-        node_color=VIS_SETTINGS.get("node_color", "skyblue"),
-        font_size=VIS_SETTINGS.get("font_size", 8),
+        node_size=vis.get("node_size", 1500),
+        node_color=vis.get("node_color", "skyblue"),
+        font_size=vis.get("font_size", 8),
         arrows=True,
     )
     plt.savefig(str(path), format="PNG", bbox_inches="tight")
@@ -677,20 +674,21 @@ def visualize_call_graph(data: dict, out_path: str) -> None:
     for edge in data.get("edges", []):
         G.add_edge(edge.get("from"), edge.get("to"))
 
-    plt.figure(figsize=tuple(VIS_SETTINGS.get("figsize", [12, 10])))
+    vis = SETTINGS.get("visualization", {})
+    plt.figure(figsize=tuple(vis.get("figsize", [12, 10])))
     pos = nx.spring_layout(
         G,
-        k=VIS_SETTINGS.get("spring_layout_k", 0.5),
-        iterations=VIS_SETTINGS.get("spring_layout_iterations", 20),
+        k=vis.get("spring_layout_k", 0.5),
+        iterations=vis.get("spring_layout_iterations", 20),
     )
     nx.draw(
         G,
         pos,
-        labels={n: sanitize_label(n.split("::")[-1]) for n in G.nodes},
+        labels={n: n.split("::")[-1].replace("$", r"\$") for n in G.nodes},
         with_labels=True,
-        node_size=VIS_SETTINGS.get("node_size", 1500),
-        node_color=VIS_SETTINGS.get("node_color", "skyblue"),
-        font_size=VIS_SETTINGS.get("font_size", 8),
+        node_size=vis.get("node_size", 1500),
+        node_color=vis.get("node_color", "skyblue"),
+        font_size=vis.get("font_size", 8),
         arrows=True,
     )
     out = Path(out_path)

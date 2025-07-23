@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 def run_extract(project_path: Path, project_name: str, visualize: bool = False) -> None:
-    graph_mod = safe_lazy_import("graph")
+    try:
+        graph_mod = safe_lazy_import("graph")
+    except ModuleNotFoundError:
+        logger.error("Required module 'graph' is missing.")
+        return
     logger.info("Crawling source files in %s", project_path)
     entries = graph_mod.crawl_directory(str(project_path), respect_gitignore=True)
     logger.info("Building call graph...")
@@ -28,20 +32,37 @@ def run_extract(project_path: Path, project_name: str, visualize: bool = False) 
         logger.info("Saved visualization to %s", img_path)
 
 
-def run_generate_embeddings(project_name: str) -> None:
+def run_generate_embeddings(project_name: str, model_path: str | None = None) -> None:
     logger.info("Generating embeddings for %s", project_name)
-    embedding = safe_lazy_import("embedding")
-    embedding.generate_embeddings(project_name)
+    try:
+        embedding = safe_lazy_import("embedding")
+    except ModuleNotFoundError:
+        logger.error("Required module 'embedding' is missing.")
+        return
+    embedding.generate_embeddings(project_name, model_override=model_path)
 
 
 def run_query(project_name: str, problem: str | None) -> None:
     logger.info("Launching query tool...")
-    query_mod = safe_lazy_import("query")
+    out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
+    call_graph_path = out_dir / "call_graph.json"
+    if not call_graph_path.exists():
+        logger.error("call_graph.json not found for project %s", project_name)
+        return
+    try:
+        query_mod = safe_lazy_import("query")
+    except ModuleNotFoundError:
+        logger.error("Required module 'query' is missing.")
+        return
     query_mod.main(project_name, problem)
 
 
 def run_inspect(project_name: str) -> None:
-    graph_mod = safe_lazy_import("graph")
+    try:
+        graph_mod = safe_lazy_import("graph")
+    except ModuleNotFoundError:
+        logger.error("Required module 'graph' is missing.")
+        return
     extracted_root = Path(SETTINGS["paths"]["output_dir"])
     selected = extracted_root / project_name
     call_graph_path = selected / "call_graph.json"
@@ -53,7 +74,11 @@ def run_inspect(project_name: str) -> None:
 
 
 def run_visualize(project_name: str) -> None:
-    graph_mod = safe_lazy_import("graph")
+    try:
+        graph_mod = safe_lazy_import("graph")
+    except ModuleNotFoundError:
+        logger.error("Required module 'graph' is missing.")
+        return
     out_dir = Path(SETTINGS["paths"]["output_dir"]) / project_name
     call_graph_path = out_dir / "call_graph.json"
     if not call_graph_path.exists():
@@ -75,6 +100,7 @@ def main() -> None:
 
     p_embed = sub.add_parser("embed", help="Generate embeddings for project")
     p_embed.add_argument("project")
+    p_embed.add_argument("--model", help="Override encoder_model_path")
 
     p_query = sub.add_parser("query", help="Search embeddings")
     p_query.add_argument("project")
@@ -99,7 +125,7 @@ def main() -> None:
         run_extract(path, path.name, visualize=args.visualize or visualize_cfg)
         return
     if args.cmd == "embed":
-        run_generate_embeddings(args.project)
+        run_generate_embeddings(args.project, args.model)
         return
     if args.cmd == "query":
         run_query(args.project, args.problem)
@@ -111,7 +137,11 @@ def main() -> None:
         run_visualize(args.project)
         return
 
-    cli = safe_lazy_import("interactive_cli")
+    try:
+        cli = safe_lazy_import("interactive_cli")
+    except ModuleNotFoundError:
+        logger.error("Required module 'interactive_cli' is missing.")
+        return
     project_path: Path | None = Path(args.path).resolve() if args.path else None
     problem: str | None = None
     next_step = 2 if project_path is not None else 1

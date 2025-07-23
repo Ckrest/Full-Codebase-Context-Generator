@@ -12,7 +12,6 @@ def test_logging_defaults_present():
     logging_cfg = DEFAULT_SETTINGS["logging"]
     assert logging_cfg["log_markdown"] is True
     assert logging_cfg["log_json"] is True
-    assert logging_cfg["track_duplicates"] is True
     assert logging_cfg["max_functions_to_log"] == 100
 
 
