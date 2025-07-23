@@ -28,7 +28,6 @@ DEFAULT_SETTINGS = {
         "top_k_results": 5,
         "use_spellcheck": False,
         "sub_question_count": 0,
-        "prompt_suggestion_count": 3,
     },
     "context": {
         "context_hops": 1,

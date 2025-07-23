@@ -70,22 +70,6 @@ def parse_llm_response(text: str) -> dict:
     return {"response_type": "info", "summary": text.strip()}
 
 
-def generate_prompt_suggestions(problem: str, count: int, llm_model):
-    if not llm_model or count <= 0:
-        return []
-    llm = safe_lazy_import("llm")
-    example_json = llm.get_example_json(count)
-    prompt = llm.PROMPT_GEN_TEMPLATE.format(problem=problem, n=count, get_example_json=example_json)
-    text = llm.call_llm(llm_model, prompt)
-    return parse_json_list(text)
-
-
-def generate_new_prompt(problem: str, existing, llm_model):
-    if not llm_model:
-        return ""
-    llm = safe_lazy_import("llm")
-    prompt = llm.PROMPT_NEW_QUERY.format(problem=problem, existing=json.dumps(existing))
-    return llm.call_llm(llm_model, prompt).strip()
 
 
 def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
@@ -366,7 +350,7 @@ class QueryProcessor:
         return session
 
 
-def main(project_folder: str, problem: str | None = None, initial_query: str | None = None):
+def main(project_folder: str, problem: str | None = None):
     workspace_mod = safe_lazy_import("workspace")
     workspace = workspace_mod.DataWorkspace.load(project_folder)
     base_dir = workspace.base_dir
@@ -396,72 +380,16 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
         names = [item.get("name") for item in metadata if "name" in item]
         symspell = create_symspell_from_terms(names)
 
-    sub_question_count = int(SETTINGS["query"].get("sub_question_count", 0))
-    use_sub_questions = sub_question_count > 0
+
 
     if problem is None:
         from interactive_cli import ask_problem
 
         problem = ask_problem()
 
-    suggestion_count = int(SETTINGS["query"].get("prompt_suggestion_count", 0))
-    from interactive_cli import get_prompt_suggestions
-    suggestions = get_prompt_suggestions()
-    if not suggestions:
-        logger.info("[⏳ Working...] Generating prompt suggestions")
-        try:
-            suggestions.extend(generate_prompt_suggestions(problem, suggestion_count, llm_model))
-            logger.info("[✔ Done]")
-        except Exception as e:
-            logger.error("Failed to generate suggestions: %s", e, exc_info=True)
-
-    def run_search(query, last_session: "workspace.QuerySession" | None = None):
-        nonlocal last
-        if query.startswith("neighbors"):
-            if not last_session:
-                logger.info("No previous search results.")
-                return last_session
-            try:
-                num = int(query.split()[1]) - 1
-                idx = last_session.final_indices[num]
-            except (ValueError, IndexError):
-                logger.info("Usage: neighbors <result_number>")
-                return last_session
-            meta = metadata[idx]
-            graph_mod = safe_lazy_import("graph")
-            nb_ids = graph_mod.expand_graph(
-                graph,
-                meta["id"],
-                depth=SETTINGS["context"].get("context_hops", 1),
-                limit=SETTINGS["context"].get("max_neighbors", 5),
-                bidirectional=SETTINGS["context"].get("bidirectional", True),
-                outbound_weight=SETTINGS["context"].get("outbound_weight", 1.0),
-                inbound_weight=SETTINGS["context"].get("inbound_weight", 1.0),
-            )
-            logger.info("Neighbors:")
-            for nid in nb_ids:
-                node = node_map.get(nid, {})
-                logger.info("- %s — %s", node.get('name'), node.get('file_path'))
-            return last_session
-
-        processor = QueryProcessor(workspace, problem, symspell, llm_model, suggestions)
-        session = processor.process(query)
-        if session.llm_response:
-            logger.info("LLM Summary:\n%s", session.llm_response)
-        last = session
-        return session
-
-    last = None
-    if initial_query:
-        last = run_search(initial_query, last)
-        return
-
-    from interactive_cli import ask_search_prompt
-
-    while True:
-        query = ask_search_prompt(suggestions, problem, llm_model)
-        if query.strip().lower() in {"exit", "quit"}:
-            logger.info("👋 Exiting.")
-            break
-        last = run_search(query, last)
+    processor = QueryProcessor(workspace, problem, symspell, llm_model, [])
+    session = processor.process(problem)
+    if session.llm_response:
+        logger.info("LLM Summary:\n%s", session.llm_response)
+    return session
 

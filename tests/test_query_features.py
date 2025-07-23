@@ -13,7 +13,6 @@ def test_default_query_settings():
     q = DEFAULT_SETTINGS["query"]
     assert q["use_spellcheck"] is False
     assert q["sub_question_count"] == 0
-    assert q["prompt_suggestion_count"] == 3
 
 
 def test_spellcheck_basic():
