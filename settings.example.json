@@ -82,13 +82,11 @@
       "auto_visualize": false
     },
   "embedding": {
-    "encoder_model_path": "",
-    "_deprecated_embedding_dim": "formerly controlled embedding size"
+    "encoder_model_path": ""
   },
   "logging": {
     "log_markdown": true,
     "log_json": true,
-    "track_duplicates": true,
     "max_functions_to_log": 100
   }
 }

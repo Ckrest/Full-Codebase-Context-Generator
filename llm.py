@@ -100,6 +100,14 @@ class LocalLLM:
             )
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
 
+
+_HANDLERS: dict[str, callable] = {}
+
+
+def register_llm_handler(name: str, handler: callable) -> None:
+    """Register a custom LLM API handler."""
+    _HANDLERS[name] = handler
+
 def get_llm_model():
     """Load the LLM client based on settings. Defaults to the Gemini API."""
     cfg = SETTINGS.get("LLM_model", {})
@@ -126,9 +134,13 @@ def get_llm_model():
 
     if api_key:
         if api_type != "gemini":
+            handler = _HANDLERS.get(api_type)
+            if handler:
+                return handler(api_key)
             raise ValueError(f"Unsupported API type: {api_type}")
         genai = safe_lazy_import("google.genai")
         client = genai.Client(api_key=api_key)
+        client.api_type = "gemini"
         return client
     print("🔑 Please set your Gemini API key in settings.json. Free as of 7-21-2025 See https://ai.google.dev/gemini-api")
     return None
@@ -171,30 +183,41 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None,
         except Exception as e:
             return f"💥 Local LLM query failed: {e}"
 
-    types = safe_lazy_import("google.genai.types")
+    api_type = getattr(client, "api_type", "gemini")
+    handler = _HANDLERS.get(api_type)
+    if api_type == "gemini" and handler is None:
+        def _gemini_handler(client, text, instruction, temperature, max_tokens, top_p):
+            types = safe_lazy_import("google.genai.types")
+            response = client.models.generate_content(
+                model="gemini-2.5-pro",
+                contents=text,
+                config=types.GenerateContentConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_tokens,
+                    top_p=top_p,
+                    system_instruction=instruction,
+                ),
+            )
+            raw_text = (
+                response.candidates[0].content.parts[0].text
+                if response and response.candidates
+                and response.candidates[0].content.parts
+                and hasattr(response.candidates[0].content.parts[0], 'text')
+                else None
+            )
+            if raw_text is None:
+                return "💥 Gemini query failed: No valid response from model."
+            return raw_text.strip()
+
+        handler = _gemini_handler
+
+    if not handler:
+        return f"💥 Unsupported LLM api_type: {api_type}"
+
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=prompt_text,
-            config=types.GenerateContentConfig(
-                temperature=temperature,
-                max_output_tokens=max_tokens,
-                top_p=top_p,
-                system_instruction=instruction,
-            ),
-        )
-        raw_text = (
-            response.candidates[0].content.parts[0].text
-            if response and response.candidates
-            and response.candidates[0].content.parts
-            and hasattr(response.candidates[0].content.parts[0], 'text')
-            else None
-        )
-        if raw_text is None:
-            return "💥 Gemini query failed: No valid response from model."
-        return raw_text.strip()
+        return handler(client, prompt_text, instruction, temperature, max_tokens, top_p)
     except Exception as e:
-        return f"💥 Gemini query failed: {e}"
+        return f"💥 {api_type} query failed: {e}"
 
 
 

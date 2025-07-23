@@ -4,7 +4,8 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from config import DEFAULT_SETTINGS, ensure_example_settings
+from config import DEFAULT_SETTINGS
+from settings_setup import ensure_example_settings
 
 
 def test_settings_example_matches_defaults(tmp_path, monkeypatch):
@@ -14,7 +15,6 @@ def test_settings_example_matches_defaults(tmp_path, monkeypatch):
     data = json.loads(example.read_text())
     expected = {"_comment": "Copy this file to settings.json and modify as needed"}
     expected.update(json.loads(json.dumps(DEFAULT_SETTINGS)))
-    expected["embedding"]["_deprecated_embedding_dim"] = "formerly controlled embedding size"
     assert data == expected
 
 

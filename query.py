@@ -15,7 +15,19 @@ from session_logger import (
     get_timestamp,
 )
 
+
+class MalformedLLMOutput(Exception):
+    """Raised when LLM output cannot be parsed as the expected JSON object."""
+
 logger = logging.getLogger(__name__)
+
+
+def _try_import(name: str):
+    try:
+        return safe_lazy_import(name)
+    except ModuleNotFoundError:
+        logger.error("Required module '%s' is missing.", name)
+        raise
 
 
 def aggregate_scores(function_index: dict) -> dict:
@@ -28,7 +40,7 @@ def aggregate_scores(function_index: dict) -> dict:
         ]
         if not matches:
             continue
-        np = safe_lazy_import("numpy")
+        np = _try_import("numpy")
         scores = [m["score"] for m in matches]
         agg = {
             "avg_score": float(np.mean(scores)),
@@ -41,7 +53,7 @@ def aggregate_scores(function_index: dict) -> dict:
 
 
 def average_embeddings(model, texts) -> object:
-    np = safe_lazy_import("numpy")
+    np = _try_import("numpy")
     vecs = model.encode(list(texts), normalize_embeddings=True)
     vecs = np.asarray(vecs, dtype=float)
     if vecs.ndim == 1:
@@ -63,7 +75,8 @@ def parse_llm_response(text: str) -> dict:
 
     The LLM may wrap the JSON object in code fences or triple quotes. This
     function strips those wrappers before attempting to decode the JSON. If
-    parsing fails, the raw text is returned as an ``info`` response.
+    parsing fails, ``MalformedLLMOutput`` is raised so callers can handle the
+    error appropriately.
     """
 
     import logging
@@ -90,10 +103,9 @@ def parse_llm_response(text: str) -> dict:
         obj = json.loads(cleaned[start:end])
         if isinstance(obj, dict):
             return obj
-    except (ValueError, json.JSONDecodeError):
+    except (ValueError, json.JSONDecodeError) as e:
         logging.getLogger(__name__).error("Failed to parse LLM response: %s", text)
-
-    return {"response_type": "info", "summary": text.strip()}
+        raise MalformedLLMOutput(text.strip()) from e
 
 
 
@@ -101,7 +113,7 @@ def parse_llm_response(text: str) -> dict:
 def generate_sub_questions(query: str, count: int, llm_model) -> list[str]:
     if not llm_model or count <= 0:
         return []
-    llm = safe_lazy_import("llm")
+    llm = _try_import("llm")
     prompt = (
         "You are helping search a codebase. Given the following question, "
         f"break it into {count} distinct sub-questions. Each one should represent a different "
@@ -188,7 +200,7 @@ class QueryProcessor:
         function_index = {}
         all_scores = {}
         for sq_idx, vec in enumerate(vectors):
-            np = safe_lazy_import("numpy")
+            np = _try_import("numpy")
             dists, idxs = self.workspace.index.search(np.asarray(vec, dtype=np.float32).reshape(1, -1), self.top_k)
             for rank, (dist, idx) in enumerate(zip(dists[0], idxs[0]), start=1):
                 meta = self.workspace.metadata[int(idx)]
@@ -205,7 +217,7 @@ class QueryProcessor:
         return subquery_data, function_index, all_scores
 
     def _aggregate_search_results(self, subquery_data, function_index, all_scores):
-        np = safe_lazy_import("numpy")
+        np = _try_import("numpy")
         for meta in function_index.values():
             scores = [s["score"] for s in meta["subqueries"]]
             times = len(scores)
@@ -262,7 +274,7 @@ class QueryProcessor:
         return final_indices, relevance, full_function_objects, subquery_data, function_index
 
     def _build_llm_prompt(self, run_dir, functions, history=None):
-        prompt_builder = safe_lazy_import("prompt_builder")
+        prompt_builder = _try_import("prompt_builder")
         prompt_text = prompt_builder.build_context_prompt(
             self.problem,
             functions,
@@ -310,7 +322,7 @@ class QueryProcessor:
         history = []
         final_context = ""
         if self.llm_model:
-            llm_mod = safe_lazy_import("llm")
+            llm_mod = _try_import("llm")
             current_funcs = functions
             while True:
                 prompt_text = self._build_llm_prompt(run_dir, current_funcs, history)
@@ -326,7 +338,12 @@ class QueryProcessor:
                     response = "💥 Gemini query failed"
                     logger.error("LLM query failed: %s", e, exc_info=True)
                 history.append({"prompt": prompt_text, "response": response})
-                parsed = parse_llm_response(response)
+                try:
+                    parsed = parse_llm_response(response)
+                except MalformedLLMOutput:
+                    logger.error("Malformed LLM output. Using raw text.")
+                    final_context = response
+                    break
                 if parsed.get("response_type") == "functions":
                     names = parsed.get("functions", [])
                     current_funcs = self.workspace.get_functions_by_name(names)
@@ -362,7 +379,7 @@ class QueryProcessor:
         with open(run_dir / "manifest.json", "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)
 
-        workspace_mod = safe_lazy_import("workspace")
+        workspace_mod = _try_import("workspace")
         session = workspace_mod.QuerySession(
             problem=self.problem,
             queries=self.queries,
@@ -377,7 +394,7 @@ class QueryProcessor:
 
 
 def main(project_folder: str, problem: str | None = None):
-    workspace_mod = safe_lazy_import("workspace")
+    workspace_mod = _try_import("workspace")
     workspace = workspace_mod.DataWorkspace.load(project_folder)
     base_dir = workspace.base_dir
     model_path = SETTINGS.get("embedding", {}).get("encoder_model_path")
@@ -394,7 +411,7 @@ def main(project_folder: str, problem: str | None = None):
 
     logger.info("\ud83d\ude80 Loading models and data...")
     model = workspace.model
-    llm = safe_lazy_import("llm")
+    llm = _try_import("llm")
     llm_model = llm.get_llm_model()
     index = workspace.index
     metadata = workspace.metadata

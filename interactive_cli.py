@@ -20,14 +20,23 @@ def _get_session(key: str) -> PromptSession:
     return session
 
 
-def ask_with_history(prompt: str, key: str) -> str:
+def ask_with_history(prompt: str, key: str, max_attempts: int = 5) -> str:
     session = _get_session(key)
+    attempts = 0
     while True:
         answer = session.prompt(prompt)
-        if answer.lower() == "settings":
+        lower = answer.lower().strip()
+        if lower in {"exit", "quit"}:
+            raise SystemExit
+        if lower == "settings":
             change_settings_event()
             continue
-        return answer
+        if answer.strip():
+            return answer
+        attempts += 1
+        if attempts >= max_attempts:
+            print("Too many invalid responses. Exiting.")
+            raise SystemExit
 
 
 def start_event(path: Path | None = None) -> tuple[Path, str]:
