@@ -59,14 +59,40 @@ def parse_json_list(text: str):
 
 
 def parse_llm_response(text: str) -> dict:
-    """Parse LLM JSON response for the iterative workflow."""
+    """Parse LLM JSON response for the iterative workflow.
+
+    The LLM may wrap the JSON object in code fences or triple quotes. This
+    function strips those wrappers before attempting to decode the JSON. If
+    parsing fails, the raw text is returned as an ``info`` response.
+    """
+
     import logging
+
+    cleaned = text.strip()
+
+    # Strip triple single quotes (''') used by some models for code blocks
+    if cleaned.startswith("'''") and cleaned.endswith("'''"):
+        cleaned = cleaned[3:-3].strip()
+
+    # Strip triple backticks with optional language hint, e.g. ```json
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 2 and lines[-1].startswith("```"):
+            lines = lines[1:-1]
+            if lines and lines[0].lstrip().startswith("json"):
+                lines = lines[1:]
+            cleaned = "\n".join(lines).strip()
+
     try:
-        obj = json.loads(text)
+        # Locate the JSON object within the cleaned text
+        start = cleaned.index("{")
+        end = cleaned.rindex("}") + 1
+        obj = json.loads(cleaned[start:end])
         if isinstance(obj, dict):
             return obj
-    except json.JSONDecodeError:
+    except (ValueError, json.JSONDecodeError):
         logging.getLogger(__name__).error("Failed to parse LLM response: %s", text)
+
     return {"response_type": "info", "summary": text.strip()}
 
 
