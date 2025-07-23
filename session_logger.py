@@ -125,6 +125,24 @@ def log_summary_to_markdown(data: dict, path: str | Path) -> str:
                 f"- {fn['name']} ({fn['file']}, score {fn['score']:.3f}, rank {fn['rank']}){tag_text}"
             )
 
+    conversation = data.get("conversation", [])
+    if conversation:
+        lines.append("")
+        lines.append("## Conversation History")
+        for i, round in enumerate(conversation, start=1):
+            lines.append("")
+            lines.append(f"### Round {i}")
+            lines.append("Prompt:")
+            lines.append(round.get("prompt", ""))
+            lines.append("Response:")
+            lines.append(round.get("response", ""))
+
+    final = data.get("llm_response")
+    if final:
+        lines.append("")
+        lines.append("## Final Output")
+        lines.append(final)
+
     with open(full_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 

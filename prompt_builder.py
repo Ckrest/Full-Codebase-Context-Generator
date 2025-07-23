@@ -14,228 +14,29 @@ def _truncate_code(code: str, max_lines: int = 40) -> str:
     return "\n".join(lines[:half] + ["..."] + lines[-half:])
 
 
-def format_summary(
-    indices: Iterable[int],
-    metadata: Iterable[Dict[str, Any]] | None = None,
-    node_map: Dict[str, Dict[str, Any]] | None = None,
-    *,
-    save_path: Optional[str] = None,
-    base_dir: Optional[str] = None,
-    workspace: Optional[DataWorkspace] = None,
-) -> str:
-    """Return formatted summaries for the selected functions."""
-    if workspace is not None:
-        metadata = workspace.metadata
-        node_map = workspace.node_map
-    if metadata is None or node_map is None:
-        raise ValueError("metadata and node_map must be provided")
-    idx_list = list(indices)
-    total = len(idx_list)
-    blocks: list[str] = []
-    blocks_full: list[str] = []
-    for pos, idx in enumerate(idx_list, start=1):
-        meta = metadata[idx]
-        node = node_map.get(meta.get("id"), {})
 
-        name = node.get("name", meta.get("name"))
-        file_path = node.get("file_path", meta.get("file"))
-        display_path = file_path
-        if base_dir:
-            base = Path(base_dir)
-            p = Path(file_path)
-            if p.is_absolute():
-                try:
-                    display_path = str(p.relative_to(base))
-                except Exception:
-                    display_path = str(p.name)
-        lang = node.get("language", "unknown")
-        tokens = node.get("estimated_tokens", 0)
-
-        comments = node.get("comments", [])[:5]
-        calls = [node_map.get(cid, {}).get("name", cid) for cid in node.get("calls", [])]
-        called_by = [node_map.get(cid, {}).get("name", cid) for cid in node.get("called_by", [])]
-        full_code = node.get("code", "")
-        lines = full_code.splitlines()
-        truncated = len(lines) > 40
-        code = _truncate_code(full_code)
-
-        label = "Function" if node.get("type") == "function" else "Item"
-        block_lines = [
-            f"======= [{pos} of {total}] =======",
-            f"{label}: {name} | File: {display_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
-        ]
-        if tokens > 1000:
-            block_lines.append(
-                f"⚠️ Warning: function may be too large to analyze effectively (est. {tokens})"
-            )
-        block_lines += ["", "Comments:"]
-        for c in comments:
-            block_lines.append(f"  - {c}")
-        if not comments:
-            block_lines.append("  - None")
-
-        if calls:
-            block_lines.append("")
-            block_lines.append("Calls:")
-            for c in calls:
-                block_lines.append(f"  - {c}")
-        if called_by:
-            block_lines.append("")
-            block_lines.append("Called By:")
-            for c in called_by:
-                block_lines.append(f"  - {c}")
-
-        block_lines.append("")
-        block_lines.append("Code:")
-        block_lines.append(code)
-        if truncated:
-            block_lines.append("📏 Code truncated to first/last 20 lines")
-        block_lines.append("=" * 40)
-        blocks.append("\n".join(block_lines))
-
-        block_full = [
-            f"======= [{pos} of {total}] =======",
-            f"{label}: {name} | File: {file_path} | Calls: {len(calls)} | Called By: {len(called_by)}",
-        ]
-        if tokens > 1000:
-            block_full.append(
-                f"⚠️ Warning: function may be too large to analyze effectively (est. {tokens})"
-            )
-        block_full += ["", "Comments:"]
-        for c in comments:
-            block_full.append(f"  - {c}")
-        if not comments:
-            block_full.append("  - None")
-        if calls:
-            block_full.append("")
-            block_full.append("Calls:")
-            for c in calls:
-                block_full.append(f"  - {c}")
-        if called_by:
-            block_full.append("")
-            block_full.append("Called By:")
-            for c in called_by:
-                block_full.append(f"  - {c}")
-        block_full.append("")
-        block_full.append("Code:")
-        block_full.append(code)
-        if truncated:
-            block_full.append("📏 Code truncated to first/last 20 lines")
-        block_full.append("=" * 40)
-        blocks_full.append("\n".join(block_full))
-
-    output = "\n".join(blocks)
-    if save_path:
-        with open(save_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(blocks_full))
-        print(f"🗃 Output saved to: {save_path}")
-    return output
+def format_function_list(functions: list[dict]) -> str:
+    """Return minimal text summaries for ``functions``."""
+    blocks = []
+    for fn in functions:
+        name = fn.get("name") or fn.get("function_name")
+        file_path = fn.get("file_path") or fn.get("file")
+        code = _truncate_code(fn.get("code", ""))
+        blocks.append(f"Function: {name}\nFile: {file_path}\nCode:\n{code}")
+    return "\n\n".join(blocks)
 
 
-def build_prompt(
-    metadata_path,
-    graph_path,
-    indices,
-    user_question,
-    base_dir=None,
-    save_path=None,
-    workspace: Optional[DataWorkspace] = None,
-):
-    """
-    Given FAISS result indices, metadata, and call graph, format a Gemini-ready prompt.
-    """
-    if workspace is not None:
-        metadata = workspace.metadata
-        graph = workspace.graph
-        node_map = workspace.node_map
-    else:
-        with open(metadata_path, "r", encoding="utf-8") as f:
-            metadata = json.load(f)
-        with open(graph_path, "r", encoding="utf-8") as f:
-            graph = json.load(f)
+def build_context_prompt(problem: str, functions: list[dict], history: list[dict] | None = None) -> str:
+    """Build prompt text for the iterative context gathering flow."""
+    from llm import NEW_CONTEXT_INSTRUCT
 
-        node_map = {n["id"]: n for n in graph.get("nodes", [])}
-    blocks = ["# QUESTION", user_question.strip(), "", f"# ITEM CONTEXT (Top {len(indices)} Matches)"]
-    blocks_full = ["# QUESTION", user_question.strip(), "", f"# ITEM CONTEXT (Top {len(indices)} Matches)"]
-
-    for i, idx in enumerate(indices):
-        meta = metadata[idx]
-        node = node_map.get(meta["id"], {})
-
-        name = node.get("name", meta.get("name", "unknown"))
-        file_path = node.get("file_path", meta.get("file", "unknown"))
-        display_path = file_path
-        if base_dir:
-            base = Path(base_dir)
-            p = Path(file_path)
-            if p.is_absolute():
-                try:
-                    display_path = str(p.relative_to(base))
-                except Exception:
-                    display_path = str(p.name)
-        comments = node.get("comments", [])[:5]
-        calls = [node_map.get(cid, {}).get("name", cid) for cid in node.get("calls", [])]
-        called_by = [node_map.get(cid, {}).get("name", cid) for cid in node.get("called_by", [])]
-        code = _truncate_code(node.get("code", ""))
-
-        label = "Function" if node.get("type") == "function" else "Item"
-        lang = node.get("language", "text")
-        section = [
-            f"## {label} {i + 1}",
-            f"ID: {meta['id']}",
-            f"Name: {name}",
-            f"File: {display_path}",
-            f"Comments:",
-        ]
-        section += [f"- {c}" for c in comments] if comments else ["- None"]
-        if calls:
-            section.append("Calls:")
-            section += [f"- {c}" for c in calls]
-        if called_by:
-            section.append("Called By:")
-            section += [f"- {c}" for c in called_by]
-        section.append("Code:")
-        section.append(f"```{lang}")
-        section.append(code)
-        section.append("```")
-
-        blocks.append("\n".join(section))
-
-        full_section = [
-            f"## {label} {i + 1}",
-            f"ID: {meta['id']}",
-            f"Name: {name}",
-            f"File: {file_path}",
-            f"Comments:",
-        ]
-        full_section += [f"- {c}" for c in comments] if comments else ["- None"]
-        if calls:
-            full_section.append("Calls:")
-            full_section += [f"- {c}" for c in calls]
-        if called_by:
-            full_section.append("Called By:")
-            full_section += [f"- {c}" for c in called_by]
-        full_section.append("Code:")
-        full_section.append(f"```{lang}")
-        full_section.append(code)
-        full_section.append("```")
-
-        blocks_full.append("\n".join(full_section))
-
-    result = "\n\n".join(blocks)
-    if save_path:
-        Path(save_path).write_text("\n\n".join(blocks_full), encoding="utf-8")
-        print(f"🗃 Output saved to: {save_path}")
-    return result
-
-
-def build_json_prompt(function_objects, user_question, save_path=None):
-    data = {
-        "question": user_question,
-        "functions": function_objects,
-    }
-    text = json.dumps(data, indent=2)
-    if save_path:
-        with open(save_path, "w", encoding="utf-8") as f:
-            f.write(text)
-    return text
+    blocks = [NEW_CONTEXT_INSTRUCT, "", "# PROBLEM:", problem.strip(), ""]
+    if history:
+        for i, round in enumerate(history, start=1):
+            blocks.append(f"# PREVIOUS ROUND {i} RESPONSE:")
+            blocks.append(round.get("response", ""))
+            blocks.append("")
+    if functions:
+        blocks.append("# FUNCTIONS:")
+        blocks.append(format_function_list(functions))
+    return "\n".join(blocks)

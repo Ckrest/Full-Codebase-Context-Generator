@@ -44,6 +44,35 @@ Respond only with the query string.
 
 # New Query"""
 
+# Instruction template used for the iterative context gathering flow. It tells
+# the model how to respond when more information is required versus when it has
+# enough context to provide an answer.
+NEW_CONTEXT_INSTRUCT = """Your job is to gather full technical context to answer the following problem.
+
+Do ONLY one of the following:
+
+1. If you are NOT sure you have enough information:
+   Respond with:
+   {
+     \"response_type\": \"functions\",
+     \"functions\": [
+       \"function_name_1\",
+       \"function_name_2\",
+       ...
+     ],
+     \"total\": <number_of_functions>
+   }
+
+2. If you ARE sure you fully understand all relevant context:
+   Respond with:
+   {
+     \"response_type\": \"info\",
+     \"summary\": \"Detailed report of all relevant functions, files, and how they relate to the original problem.\"
+   }
+
+⚠️ Do NOT include both options. Do NOT add explanations outside this JSON object.
+"""
+
 # Only Gemini is supported right now
 
 
@@ -112,7 +141,8 @@ def call_llm(client, prompt_text, temperature=None, max_tokens=None, top_p=None,
     encourage the model to follow the prompts. For local models that do not
     support a separate instruction field, the instruction is prepended to the
     prompt text.
-    """
+"""
+
     if not client:
         return "❌ Generative model client not initialized."
     

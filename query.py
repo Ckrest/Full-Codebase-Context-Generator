@@ -58,6 +58,18 @@ def parse_json_list(text: str):
         return []
 
 
+def parse_llm_response(text: str) -> dict:
+    """Parse LLM JSON response for the iterative workflow."""
+    import logging
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        logging.getLogger(__name__).error("Failed to parse LLM response: %s", text)
+    return {"response_type": "info", "summary": text.strip()}
+
+
 def generate_prompt_suggestions(problem: str, count: int, llm_model):
     if not llm_model or count <= 0:
         return []
@@ -239,16 +251,17 @@ class QueryProcessor:
             })
         return final_indices, relevance, full_function_objects, subquery_data, function_index
 
-    def _build_llm_prompt(self, run_dir, functions):
+    def _build_llm_prompt(self, run_dir, functions, history=None):
         prompt_builder = safe_lazy_import("prompt_builder")
-        prompt_text = prompt_builder.build_json_prompt(
-            functions,
+        prompt_text = prompt_builder.build_context_prompt(
             self.problem,
-            save_path=str(run_dir / "prompt.json"),
+            functions,
+            history=history or [],
         )
+        (run_dir / "prompt.txt").write_text(prompt_text, encoding="utf-8")
         return prompt_text
 
-    def _log_session_artifacts(self, run_dir, manifest, queries, subquery_data, function_index, summary_data, final_context):
+    def _log_session_artifacts(self, run_dir, manifest, queries, subquery_data, function_index, summary_data, final_context, conversation=None):
         if SETTINGS.get("logging", {}).get("log_markdown", True):
             md_file = log_summary_to_markdown(
                 {
@@ -257,6 +270,7 @@ class QueryProcessor:
                     "functions": function_index,
                     "summary": summary_data,
                     "llm_response": final_context,
+                    "conversation": conversation or [],
                 },
                 run_dir / "summary.md",
             )
@@ -268,6 +282,7 @@ class QueryProcessor:
                 "query": queries[0] if queries else "",
                 "subqueries": [sq["text"] for sq in subquery_data],
                 "functions": [format_function_entry(self.workspace.node_map.get(function_index[k]["id"]), v, self.workspace.graph) for k, v in function_index.items()],
+                "conversation": conversation or [],
             }
             json_file = log_session_to_json(log_data, run_dir / "results.json")
             manifest["files"].append({"file": "results.json", "description": "Machine-readable summary of query results."})
@@ -282,17 +297,32 @@ class QueryProcessor:
             vectors = vectors.reshape(1, -1)
         subquery_data, function_index, all_scores = self._execute_faiss_search(vectors)
         final_indices, relevance, functions, subquery_data, function_index = self._aggregate_search_results(subquery_data, function_index, all_scores)
-        prompt_text = self._build_llm_prompt(run_dir, functions)
+        history = []
         final_context = ""
         if self.llm_model:
             llm_mod = safe_lazy_import("llm")
-            logger.info("[⏳ Working...] Querying Gemini")
-            try:
-                final_context = llm_mod.call_llm(self.llm_model, prompt_text)
-                logger.info("[✔ Done]")
-            except Exception as e:
-                final_context = "💥 Gemini query failed"
-                logger.error("LLM query failed: %s", e, exc_info=True)
+            current_funcs = functions
+            while True:
+                prompt_text = self._build_llm_prompt(run_dir, current_funcs, history)
+                logger.info("[⏳ Working...] Querying Gemini")
+                try:
+                    response = llm_mod.call_llm(
+                        self.llm_model,
+                        prompt_text,
+                        instruction=llm_mod.NEW_CONTEXT_INSTRUCT,
+                    )
+                    logger.info("[✔ Done]")
+                except Exception as e:
+                    response = "💥 Gemini query failed"
+                    logger.error("LLM query failed: %s", e, exc_info=True)
+                history.append({"prompt": prompt_text, "response": response})
+                parsed = parse_llm_response(response)
+                if parsed.get("response_type") == "functions":
+                    names = parsed.get("functions", [])
+                    current_funcs = self.workspace.get_functions_by_name(names)
+                    continue
+                final_context = parsed.get("summary", response)
+                break
             with open(run_dir / "raw_llm_response.txt", "w", encoding="utf-8") as f:
                 f.write(final_context + "\n")
             manifest["files"].append({"file": "raw_llm_response.txt", "description": "Unprocessed output returned by the LLM."})
@@ -306,7 +336,7 @@ class QueryProcessor:
             "duplicate_functions": sum(1 for m in function_index.values() if m.get("duplicate_count", 0) > 1),
         }
 
-        self._log_session_artifacts(run_dir, manifest, self.queries, subquery_data, function_index, summary_data, final_context)
+        self._log_session_artifacts(run_dir, manifest, self.queries, subquery_data, function_index, summary_data, final_context, history)
 
         readme_lines = ["# Query Run " + run_id, "", f"Original query: {query}", "", "## Artifacts"]
         for item in manifest.get("files", []):
@@ -331,6 +361,7 @@ class QueryProcessor:
             final_indices=final_indices,
             llm_response=final_context,
             output_dir=run_dir,
+            conversation=[workspace_mod.ConversationRound(**r) for r in history],
         )
         return session
 
@@ -415,6 +446,8 @@ def main(project_folder: str, problem: str | None = None, initial_query: str | N
 
         processor = QueryProcessor(workspace, problem, symspell, llm_model, suggestions)
         session = processor.process(query)
+        if session.llm_response:
+            logger.info("LLM Summary:\n%s", session.llm_response)
         last = session
         return session
 
