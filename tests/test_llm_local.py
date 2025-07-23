@@ -48,3 +48,14 @@ def test_local_model_loading_and_generation(monkeypatch):
     assert text.strip() == "dummy output"
     assert captured["prompt"].startswith("Your job is to process and format data.")
 
+
+def test_call_llm_with_instruction(monkeypatch):
+    captured = {}
+    setup_dummy_transformers(monkeypatch, captured)
+    monkeypatch.setitem(SETTINGS, "LLM_model", {"local_path": "dummy", "api_key": "", "api_type": "gemini"})
+    import llm
+    importlib.reload(llm)
+    model = llm.get_llm_model()
+    text = llm.call_llm(model, "Hello", instruction="TEST INSTRUCT")
+    assert captured["prompt"].startswith("TEST INSTRUCT")
+

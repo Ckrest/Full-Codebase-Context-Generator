@@ -70,6 +70,14 @@ class DataWorkspace:
             model=model,
         )
 
+    def get_functions_by_name(self, names: list[str]) -> list[dict]:
+        """Return node objects whose ``name`` matches any in ``names``."""
+        results = []
+        for node in self.node_map.values():
+            if node.get("name") in names:
+                results.append(node)
+        return results
+
 
 @dataclass
 class QuerySession:
@@ -82,3 +90,13 @@ class QuerySession:
     final_indices: list[int] = field(default_factory=list)
     llm_response: str = ""
     output_dir: Path | None = None
+    conversation: list["ConversationRound"] = field(default_factory=list)
+
+
+@dataclass
+class ConversationRound:
+    """Single prompt/response pair from the iterative LLM loop."""
+
+    prompt: str
+    response: str
+    functions_requested: list[str] = field(default_factory=list)

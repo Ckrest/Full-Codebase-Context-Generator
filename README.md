@@ -31,6 +31,11 @@ If `sub_question_count` is greater than 0, an LLM call breaks your question into
 that many sub-queries before searching the embeddings. This helps find relevant
 code from multiple angles.
 
+During querying, the LLM may request additional function summaries before
+providing a final answer. Each response is a JSON object with either
+`{"response_type": "functions"}` requesting more code by name or
+`{"response_type": "info"}` containing the final summary.
+
 Run the tests with `pytest` to ensure everything works:
 
 ```bash
@@ -83,11 +88,11 @@ Invoke the CLI with `python main.py <command>`:
 ```bash
 python main.py extract /path/to/project
 python main.py embed my_project
-python main.py query my_project --problem "bug" --prompt "search term"
+python main.py query my_project --problem "bug"
 python main.py inspect my_project
 ```
 
-Running `main.py` without arguments starts an interactive loop. It will prompt for the project path, problem statement, and search query. Use the up/down arrows to recall previous answers. During querying you can type `neighbors <n>` to see the graph neighbors of result `n`. Prompt history is saved under `~/.full_context_history/`.
+Running `main.py` without arguments starts an interactive loop. It will prompt for the project path and problem statement. The LLM then guides an iterative search by requesting additional functions until it can provide a final summary. Use `neighbors <n>` to inspect graph neighbors of a result. Prompt history is saved under `~/.full_context_history/`.
 
 ### Spellcheck and Sub-Queries
 
