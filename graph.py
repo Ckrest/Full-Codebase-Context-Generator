@@ -38,6 +38,11 @@ def estimate_tokens(content: str) -> int:
     return int(len(content.split()) * TOKEN_ESTIMATE_RATIO)
 
 
+def sanitize_label(label: str) -> str:
+    """Escape dollar signs to prevent mathtext parsing errors."""
+    return label.replace("$", r"\$")
+
+
 JS_PARSER: Parser = get_parser("javascript")
 TS_PARSER: Parser = get_parser("typescript")
 
@@ -653,7 +658,7 @@ def render_call_graph_image(graph: nx.DiGraph, path: Path):
     nx.draw(
         graph,
         pos,
-        labels={n: n.split("::")[-1] for n in graph.nodes},
+        labels={n: sanitize_label(n.split("::")[-1]) for n in graph.nodes},
         with_labels=True,
         node_size=VIS_SETTINGS.get("node_size", 1500),
         node_color=VIS_SETTINGS.get("node_color", "skyblue"),
@@ -681,7 +686,7 @@ def visualize_call_graph(data: dict, out_path: str) -> None:
     nx.draw(
         G,
         pos,
-        labels={n: n.split("::")[-1] for n in G.nodes},
+        labels={n: sanitize_label(n.split("::")[-1]) for n in G.nodes},
         with_labels=True,
         node_size=VIS_SETTINGS.get("node_size", 1500),
         node_color=VIS_SETTINGS.get("node_color", "skyblue"),
